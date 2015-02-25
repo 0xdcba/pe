@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, mnesia, субд, базаданных, транзакции, транзакции mnesia, запрос">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге)</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге)</h1>
+			<p>Предположим, вы захотели создать многопользовательскую игру, сделать новый веб-сайт, или разработать систему онлайн-платежей. Вероятно, вам в этом случае понадобится какая-либо СУБД.</p>
+<p>Среди тысячи-другой файлов, появившихся на диске после установки Эрланга, присутствует полнофункциональная СУБД под названием Mnesia. Она исключительно быстра, и она может хранить структуры, состоящие из любых доступных в Эрланге типов данных. </p>
+<p>Кроме того, Mnesia поддаётся детальной настройке и конфигурированию. Определённые таблицы могут храниться в RAM (для обеспечения высокой скорости доступа), другие - сохраняться на диск (выживая при падении узла), а ещё таблицы могут реплицироваться на другие компьютеры в сети, что даёт возможность строить устойчивые к сбоям системы.</p>
+<p>Давайте познакомимся со всем этим поближе.</p>
+<h2 id="17-1-">17.1 Запросы к базе данных</h2>
+<p>Начнём, пожалуй, с изучения запросов к БД Mnesia. При ближайшем рассмотрении оказывается, что запросы Mnesia одновременно похожи и на SQL), и на обработчики запросов (<code>list comprehensions</code>), так что нам не придётся изучать так уж много нового.)</p>
+<p>Во всех примерах я буду подразумевать, что вы создали базу данных с двумя таблицами с названиями <code>shop</code> и <code>cost</code>. Эти таблицы содержат следующие данные.</p>
+<p>Таблица <code>shop</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th style="text-align:right">Quantity</th>
+<th style="text-align:center">Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>apple</td>
+<td style="text-align:right">20</td>
+<td style="text-align:center">2.3</td>
+</tr>
+<tr>
+<td>orange</td>
+<td style="text-align:right">100</td>
+<td style="text-align:center">3.8</td>
+</tr>
+<tr>
+<td>pear</td>
+<td style="text-align:right">200</td>
+<td style="text-align:center">3.6</td>
+</tr>
+<tr>
+<td>banana</td>
+<td style="text-align:right">420</td>
+<td style="text-align:center">4.5</td>
+</tr>
+<tr>
+<td>potato</td>
+<td style="text-align:right">2456</td>
+<td style="text-align:center">1.2</td>
+</tr>
+</tbody>
+</table>
+<p>Таблица <code>cost</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th style="text-align:center">Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>apple</td>
+<td style="text-align:center">1.5</td>
+</tr>
+<tr>
+<td>orange</td>
+<td style="text-align:center">2.4</td>
+</tr>
+<tr>
+<td>pear</td>
+<td style="text-align:center">2.2</td>
+</tr>
+<tr>
+<td>banana</td>
+<td style="text-align:center">1.5</td>
+</tr>
+<tr>
+<td>otato</td>
+<td style="text-align:center">0.6</td>
+</tr>
+</tbody>
+</table>
+<p>Чтобы представить эти таблицы в подходящем для Mnesia виде, мы должны создать определения записей, которые бы описывали колонки в таблицах. Определения эти таковы:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>-record(shop, {item, quantity, cost}).
+-record(cost, {name, price}).
+</code></pre><p>Теперь немного чёрной магии. Я собираюсь показать, как работают запросы, и хочу, чтобы вы могли повторить это все у себя дома. Но для этого сначала кто-то должен создать и заполнить для вас базу данных. Так что пока поверьте мне на слово - в файле <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a>
+я подготовил код, который производит инициализацию, и вы можете просто запустить его из оболочки <code>erl</code>.</p>
+<pre><code>1&gt; c(test_mnesia).
+{ok,test_mnesia}
+2&gt; test_mnesia:do_this_once().
+=INFO REPORT==== 29-Mar-2007::20:33:12 ===
+    application: mnesia
+    exited: stopped
+    type: temporary
+stopped
+</code></pre><p>Теперь мы можем приступить к нашим примерам.</p>
+<h3 id="-">Выборка всех данных из таблицы</h3>
+<p>Вот так выглядит код для выборки всех данных из таблицы shop (для тех, кто знаком с SQL, каждый фрагмент кода начинается с комментария, где показан соответствующий задаче оператор SQL).</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>%% SQL equivalent
+%% SELECT * FROM shop;
+demo(select_shop) -&gt;
+    do(qlc:q([X || X &lt;- mnesia:table(shop)]));
+</code></pre><p>Самая суть примера заключена в вызове функции <code>qlc:q</code>, которая компилирует запрос (её параметр) во внутреннее представление, которое уже используется для непосредственного выполнения запроса. </p>
+<p>Мы передаем полученный запрос в функцию с названием <code>do()</code>, которая определена в модуле <code>test_mnesia</code>(ближе к концу модуля). Она отвечает за выполнение запроса и возврат результата. </p>
+<p>Для того, чтобы её можно было легко вызывать из оболочки <code>erl</code>, мы заключили этот код в функцию <code>demo(select_shop)</code> (Полный листинг модуля <code>mnesia_test</code> приведён в конце главы).</p>
+<p>Мы можем вызвать её таким образом:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>1&gt; test_mnesia:start().
+ok
+2&gt; test_mnesia:reset_tables().
+{atomic, ok}
+3&gt; test_mnesia:demo(select_shop).
+[{shop,orange,100,3.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,20,2.30000}]
+</code></pre><p><em>Примечание</em>: выбранные из таблицы строки могут оказаться в другом порядке.</p>
+<p>Строка, которая задает запрос, в этом примере выглядит так:</p>
+<pre><code>qlc:q([X || X &lt;- mnesia:table(shop)])
+</code></pre><p>Это очень похоже на обработчики списков (<code>list comprehensions</code>) (см. раздел 3.6, <em>Обработчики списков</em>, на странице __). На самом деле, <code>qlc</code> расшифровывается как <em>&quot;query list comprehensions&quot;</em>. Это один из модулей, которые служат для доступа к данным в БД Mnesia.</p>
+<p>Выражение <code>[X || X &lt;- mnesia:table(shop)]</code> означает “список <code>X</code>, таких, что <code>X</code> берется из таблицы Mnesia с названием <code>shop</code>”. Значения <code>X</code> - это Эрланг-записи типа <code>shop</code>.</p>
+<p><em>Важно</em>: аргумент функции <code>qlc:q/1</code> должен быть литералом обработчика списков (<code>list comprehension</code>, а не чем-либо, что вычисляется в такое выражение. Таким образом, например,
+вот такой код не будет эквивалентным тому, что написано в примере:</p>
+<pre><code>Var = [X || X &lt;- mnesia:table(shop)],
+qlc:q(Var)
+</code></pre><h3 id="-">Выборка определенных колонок из таблицы (проекция)</h3>
+<p>Следующий запрос выбирает колонки <code>item</code> и <code>quantity</code> из таблицы shop.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>%% SQL equivalent
+%% SELECT item, quantity FROM shop;
+
+demo(select_some) -&gt;
+    do(qlc:q([{X#shop.item, X#shop.quantity} || X &lt;- mnesia:table(shop)]));
+
+4&gt; test_mnesia:demo(select_some).
+[{orange,100},{pear,200},{banana,420},{potato,2456},{apple,20}]
+</code></pre><p>В предыдущем примере значения <code>X</code> были записями типа <code>shop</code>. Если вы вспомните синтаксис выражений с записями из раздела 3.9, <em>Записи</em>, на странице __, вы увидите, что <code>X#shop.item</code> 
+соответствует полю <code>item</code> записи типа <code>shop</code>. Таким образом, кортеж <code>{X#shop.item, X#shop.quantity}</code> состоит из двух полей записи <code>X</code> - <code>item</code> и <code>quantity</code>.</p>
+<h3 id="-">Выборка из таблицы данных, удовлетворяющих условию</h3>
+<p>Следующий запрос выберет все наименования товаров из таблицы <code>shop</code>, где количество товара на складе меньше, чем 250. Например, мы могли бы использовать этот вопрос, чтобы решить, какие товары нам надо дозаказать.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl" title="загрузить test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>%% SQL equivalent
+%% SELECT shop.item FROM shop
+%% WHERE shop.quantity &lt; 250;
+demo(reorder) -&gt;
+    do(qlc:q([X#shop.item || X &lt;- mnesia:table(shop),
+                            X#shop.quantity &lt; 250
+                                ]));
+5&gt; test_mnesia:demo(reorder).
+[orange,pear,apple]
+</code></pre><p>Обратите внимание, как наше условие естественно вписалось в обработчик списков.</p>
+<h3 id="-join-">Выборка данных из двух таблиц (Join)</h3>
+<p>Теперь предположим, что мы хотим дозаказать товар только в том случае, если на складе его осталось менее 250 штук, а цена его - меньше чем 2.0 за штуку. Чтобы это сделать, нам придётся обратиться сразу к двум таблицам. Вот так выглядит нужный запрос:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>%% SQL equivalent
+%% SELECT shop.item, shop.quantity, cost.name, cost.price
+%% FROM shop, cost
+%% WHERE shop.item = cost.name
+%% AND cost.price &lt; 2
+%% AND shop.quantity &lt; 250
+
+demo(join) -&gt;
+    do(qlc:q([X#shop.item || X &lt;- mnesia:table(shop),
+    X#shop.quantity &lt; 250,
+    Y &lt;- mnesia:table(cost),
+    X#shop.item =:= Y#cost.name,
+    Y#cost.price &lt; 2
+])).
+6&gt; test_mnesia:demo(join).
+[apple]
+</code></pre><p>Здесь важным фрагментом является соединение между наименованием товара в таблице <code>shop</code> и наименованием товара в таблице <code>cost</code>:</p>
+<pre><code>X#shop.item =:= Y#cost.name
+</code></pre><h2 id="17-2-">17.2 Вставка и удаление данных в/из БД.</h2>
+<p>Снова предполагаем, что мы создали БД и определили таблицу <code>shop</code>. Теперь мы хотим добавить строку в таблицу, или, наоборот, удалить строку из таблицы.</p>
+<h3 id="-">Вставка строки</h3>
+<p>Мы можем добавить строку в таблицу <code>shop</code> следующим образом:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>add_shop_item(Name, Quantity, Cost) -&gt;
+Row = #shop{item=Name, quantity=Quantity, cost=Cost},
+F = fun() -&gt;
+    mnesia:write(Row)
+    end,
+mnesia:transaction(F).
+</code></pre><p>Эта функция создаёт запись типа <code>shop</code> и вставляет её в таблицу:</p>
+<pre><code>1&gt; test_mnesia:start().
+ok
+2&gt; test_mnesia:reset_tables().
+{atomic, ok}
+%% list the shop table
+3&gt; test_mnesia:demo(select_shop).
+[{shop,orange,100,3.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,20,2.30000}]
+%% add a new row
+4&gt; test_mnesia:add_shop_item(orange, 236, 2.8).
+{atomic,ok}
+%% list the shop table again so we can see the change
+5&gt; test_mnesia:demo(select_shop).
+[{shop,orange,236,2.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,20,2.30000}]
+</code></pre><p><em>Примечание</em>: первичным <em>ключом</em> в таблице <code>shop</code> является первая колонка таблицы, то есть, наименование товара (<code>item</code>) в записи <code>shop</code>. Таблица создана с типом &quot;<code>set</code>&quot; (см. обсуждение типов <code>set</code> и <code>bag</code> в разделе 15.2, <em>Types of Table</em>, стр. <em>_</em>). Если вновь созданная запись имеет такое же значение первичного ключа, как у уже существующей в БД строки, она перезапишет эту строку, в противном случае в БД добавится новая строка.</p>
+<h3 id="-">Удаление строки</h3>
+<p>Чтобы удалить строку, нам нужно знать ID объекта (<code>OID</code>) для этой строки. <code>OID</code> составляется из имени таблицы и значения первичного ключа:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>remove_shop_item(Item) -&gt;
+    Oid = {shop, Item},
+    F = fun() -&gt;
+        mnesia:delete(Oid)
+        end,
+    mnesia:transaction(F).
+
+6&gt; test_mnesia:remove_shop_item(pear).
+{atomic,ok}
+%% list the table -- the pear has gone
+7&gt; test_mnesia:demo(select_shop).
+[{shop,orange,236,2.80000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,20,2.30000}]
+ [{shop,orange,236,2.80000},
+8&gt; mnesia:stop().
+ok
+</code></pre><h2 id="17-3-mnesia">17.3 Транзакции в Mnesia</h2>
+<p>Когда ранее мы добавляли или удаляли строки в/из БД, или выполняли запрос к БД, мы писали что-то вроде такого:</p>
+<pre><code>do_something(...) -&gt;
+F = fun() -&gt;
+    % ...
+    mnesia:write(Row)
+    % ... или ...
+    mnesia:delete(Oid)
+    % ... или ...
+    qlc:e(Q)
+    end,
+mnesia:transaction(F)
+</code></pre><p><code>F</code> — это анонимная функция без аргументов. Внутри <code>F</code> мы вызывали некое сочетание функций
+<code>mnesia:write/1</code>, <code>mnesia:delete/1</code> или <code>qlc:e(Q)</code> (где <code>Q</code> это запрос, предварительно скомпилированный при помощи <code>qlc:q/1</code>). </p>
+<p>Зачем мы так делали? Что вообще значит &quot;транзакция&quot;? Чтобы пояснить это, предположим, что у нас есть два процесса, которые одновременно пытаются получить доступ к одним и тем же данным.
+Например, у меня есть 10 долларов на банковском счете. Теперь предположим, что два человека пытаются одновременно взять по 8 долларов с этого счета. В данном случае я бы хотел, чтобы одно из этих снятий произошло успешно, а другое - не произошло.</p>
+<p>Именно эту гарантию предоставляет нам <code>mnesia:transaction/1</code>. Либо все чтения и записи данных в БД в пределах одной конкретно взятой транзакции завершаются успешно, либо не завершается успешно ни одна из этих операций. Если ни одна из составляющих транзакцию операций не успешна,  мы говорим, что транзакция терпит неудачу. Если транзакция терпит неудачу, никаких изменений в БД не производится.</p>
+<p>Стратегия, которой при этом следует Mnesia, является разновидностью <em>пессимистических блокировок</em>. Всякий раз, когда менеджер транзакций Mnesia обращается к таблице, он пытается заблокировать запись или всю таблицу, в зависимости от ситуации. Если он обнаруживает, что блокировка может привести к взаимоблокировке (<code>deadlock</code>), он немедленно отменяет транзакцию
+и откатывает все изменения, которые в пределах этой транзакции были сделаны. Если транзакция с самого начала терпит неудачу по причине того, что другой процесс занял данные, система делает небольшую паузу и повторяет транзакцию. Одним из результатов такого поведения является то, что код внутри анонимной функции транзакции может выполняться большое количество раз.</p>
+<p>Именно по этой причине анонимная функция транзакции не должна делать ничего такого, что приводит к побочным эффектам. Например, если бы мы написали что-то такое:</p>
+<pre><code>F = fun() -&gt;
+    ...
+    io:format(&quot;reading ...&quot; ), %% don&#39;t do this
+    ...
+    end,
+mnesia:transaction(F),
+</code></pre><p>мы могли бы получить на выводе большую кучу ненужного текста, просто потому что функция была перезапущена много раз.</p>
+<p><em>Примечание 1</em>: функции <code>mnesia:write/1</code> и <code>mnesia:delete/1</code> должны вызываться только в анонимной функции, которую выполняет <code>mnesia:transaction/1</code>.</p>
+<p><em>Примечание 2</em>: Никогда не пишите код, который явно перехватывает исключения от функций доступа Mnesia (<code>mnesia:write/1</code>, <code>mnesia:delete/1</code>, и т.п.), поскольку механизм транзакций Mnesia сам основан на том, что эти функции  выбрасывают исключения при неудаче. Если вы будете перехватывать исключения и обрабатывать их сами, вы сломаете механизм транзакций.</p>
+<h3 id="-">Отмена транзакции</h3>
+<p>Около нашего магазина есть ферма, где выращивают яблоки. Хозяин фермы любит апельсины, и покупает их у нас по бартеру, на яблоки. &quot;Курс обмена&quot; - два к одному, то есть, чтобы купить
+&#39;N&#39; апельсинов, фермер даёт нам <code>2*N</code> яблок.</p>
+<p>Вот так выглядит функция, которая обновляет БД, когда фермер покупает апельсины:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>farmer(Nwant) -&gt;
+%% Nwant = Number of oranges the farmer wants to buy
+F = fun() -&gt;
+    %% find the number of apples
+    [Apple] = mnesia:read({shop,apple}),
+    Napples = Apple#shop.quantity,
+    Apple1 = Apple#shop{quantity = Napples + 2*Nwant},
+    %% update the database
+    mnesia:write(Apple1),
+    %% find the number of oranges
+    [Orange] = mnesia:read({shop,orange}),
+    NOranges = Orange#shop.quantity,
+    if
+        NOranges &gt;= Nwant -&gt;
+            N1 = NOranges - Nwant,
+            Orange1 = Orange#shop{quantity=N1},
+            %% update the database
+            mnesia:write(Orange1);
+        true -&gt;
+            %% Oops -- not enough oranges
+            mnesia:abort(oranges)
+        end
+    end,
+mnesia:transaction(F).
+</code></pre><p>Этот код, честно говоря, глуповат, но я так написал специально, чтобы продемонстрировать работу транзакций.  Сначала я изменяю количество яблок в БД. Это делается <em>до</em> того, как я проверяю количество доступных апельсинов. Это сделано специально, чтобы показать, что изменения можно &quot;откатить&quot;, если транзакция неудачна. В обычной ситуации я бы отложил запись количества яблок, пока не убедился бы в наличии достаточного количества апельсинов. Посмотрим на этот код в действии. Утром фермер приходит и покупает 50 апельсинов.</p>
+<pre><code>1&gt; test_mnesia:start().
+ok
+2&gt; test_mnesia:reset_tables().
+{atomic, ok}
+%% List the shop table
+3&gt; test_mnesia:demo(select_shop).
+[{shop,orange,100,3.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,20,2.30000}]
+%% The farmer buys 50 oranges
+%% paying with 100 apples
+4&gt; test_mnesia:farmer(50).
+{atomic,ok}
+%% Print the shop table again
+5&gt; test_mnesia:demo(select_shop).
+[{shop,orange,50,3.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,120,2.30000}]
+</code></pre><p>После обеда он приходит снова и хочет купить ещё 100 апельсинов (ничего себе, как же он любит апельсины!)</p>
+<pre><code>6&gt; test_mnesia:farmer(100).
+{aborted,oranges}
+7&gt; test_mnesia:demo(select_shop).
+[{shop,orange,50,3.80000},
+ {shop,pear,200,3.60000},
+ {shop,banana,420,4.50000},
+ {shop,potato,2456,1.20000},
+ {shop,apple,120,2.30000}]
+</code></pre><blockquote>
+<h3 id="-mnesia-">Почему СУБД называется Mnesia?</h3>
+<p>Изначально её название было &quot;Amnesia&quot;. Одному из наших боссов это не понравилось, он сказал: &quot;Нельзя называть её Amnesia - мы не можем выпускать базу данных, которая, судя по названию, забывает всё подряд!&quot; Так что мы убрали букву &quot;A&quot;, и название прижилось.</p>
+</blockquote>
+<p>Когда транзакция отменилась (когда мы вызвали <code>mnesia:abort(Reason)</code>), 
+те изменения, которые были сделаны при помощи <code>mnesia:write</code>, были также отменены.
+Таким образом, состояние СУБД было восстановлено таким, каким оно было до начала транзакции.</p>
+<h3 id="-">Загрузка тестовых данных</h3>
+<p>Теперь, когда мы знаем, как работают транзакции, мы можем посмотреть на код, который загружал нам тестовые данные. Функция <code>test_mnesia:example_tables/0</code> задает данные, необходимые для инициализации таблиц. Первый элемент кортежа задает имя таблицы, следом идет содержимое строки, в том же порядке, в котором поля были описаны при определении Эрланг-записи.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>example_tables() -&gt;
+   [%% The shop table
+    {shop, apple,     20,     2.3},
+    {shop, orange,     100,     3.8},
+    {shop, pear,     200,     3.6},
+    {shop, banana,     420,     4.5},
+    {shop, potato,     2456,     1.2},
+    %% The cost table
+    {cost, apple,     1.5},
+    {cost, orange,     2.4},
+    {cost, pear,     2.2},
+    {cost, banana,     1.5},
+    {cost, potato,     0.6}
+   ].
+</code></pre><p>Следующий код вставляет данные в Mnesia из таблиц примера.</p>
+<pre><code>reset_tables() -&gt;
+    mnesia:clear_table(shop),
+    mnesia:clear_table(cost),
+    F = fun() -&gt;
+        foreach(fun mnesia:write/1, example_tables())
+        end,
+    mnesia:transaction(F).
+</code></pre><p>Он всего лишь вызывает <code>mnesia:write</code> для каждого кортежа из списка, который возвращает <code>example_tables/1</code></p>
+<h3 id="-do-">Функция do()</h3>
+<p>Функция <code>do</code>, которую вызывает <code>demo/1</code>, чуть сложнее:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>do(Q) -&gt;
+    F = fun() -&gt; qlc:e(Q) end,
+{atomic, Val} = mnesia:transaction(F),
+Val.
+</code></pre><p>Она вызывает <code>qlc:e(Q)</code> в рамках транзакции Mnesia. <code>Q</code> - это скомпилированный запрос <code>QLC</code>, а <code>qlc:e(Q)</code> выполняет запрос и возвращает все ответы на запрос в виде списка. Возвращаемое значение <code>{atomic, Val}</code> означает, что транзакция завершилась успешно со значением <code>Val</code>. <code>Val</code> - это значение, возвращаемое анонимной функцией транзакции.</p>
+<h2 id="17-4-mnesia-">17.4 Сохранение сложных типов данных в Mnesia.</h2>
+<p>Если вы программируете на C, то как бы вы сохранили структуру C (<code>struct</code>) в базе данных SQL? Или, если вы программируете на Java, как бы вы стали сохранять в такой же базе объект? Ответ - с изрядными сложностями. Одной из проблем при использовании привычных СУБД является ограниченность встроенных типов колонок. Вы можете хранить в колонке БД целое число, строку, число с плавающей точкой, и т.п. Но если вы хотите сохранить сложный объект, это реальная проблема.</p>
+<p>Mnesia разработана так, чтобы хранить структуры данных Эрланг. На самом деле, вы можете сохранять в таблице Mnesia любую структуру данных, которую можно создать в Эрланг. Чтобы проиллюстрировать это, предположим, что некоторое количество архитекторов хотят сохранять в Mnesia свои чертежи. Для начала мы должны определить запись (<code>record</code>), которая будет представлять собой чертёж.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>-record(design, {id, plan}).
+</code></pre><p>Затем мы пишем функцию, которая добавляет несколько чертежей в БД:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>add_plans() -&gt;
+    D1 = #design{id = {joe,1},
+        plan={circle,10}},
+    D2 = #design{id = fred,
+        plan={rectangle,10,5}},
+    D3 = #design{id = {jane,{house,23}},
+        plan = {house,
+            [{floor,1,
+                [{doors,3},
+                 {windows,12},
+                 {rooms,5}]},
+             {floor,2,
+                [{doors,2},
+                 {rooms,4},
+                 {windows,15}]}]}},
+    F = fun() -&gt;
+        mnesia:write(D1),
+        mnesia:write(D2),
+        mnesia:write(D3)
+    end,
+    mnesia:transaction(F).
+```
+Теперь мы можем добавить несколько чертежей в БД
+```
+1&gt; test_mnesia:start().
+ok
+2&gt; test_mnesia:add_plans().
+{atomic,ok}
+</code></pre><p>Теперь мы имеем несколько чертежей, сохраненных в БД. Мы можем извлекать их оттуда при помощи следующей функции:</p>
+<pre><code>get_plan(PlanId) -&gt;
+    F = fun() -&gt; mnesia:read({design, PlanId}) end,
+    mnesia:transaction(F).
+
+3&gt; test_mnesia:get_plan(fred).
+{atomic,[{design,fred,{rectangle,10,5}}]}
+4&gt; test_mnesia:get_plan({jane, {house,23}}).
+{atomic,[{design,{jane,{house,23}},
+    {house,[{floor,1,[{doors,3},
+        {windows,12},
+        {rooms,5}]},
+    {floor,2,[{doors,2},
+        {rooms,4},
+        {windows,15}]}]}}]}
+</code></pre><p>Как вы можете видеть, и ключ, и извлекаемое значение могут быть произвольными термами Эрланг.</p>
+<p>Говоря техническим языком, между структурами данных в БД и структурами в Эрланге отсутствует &quot;разность сопротивлений&quot;. Это означает, что вставка и удаление сложных структур данных в/из БД работают очень быстро.</p>
+<blockquote>
+<h3 id="-">Фрагментированные таблицы</h3>
+<p>Mnesia поддерживает &quot;фрагментированные таблицы&quot; ( <em>горизонтальное партицирование</em>, если пользоваться привычной терминологией СУБД). Это сделано для поддержки чрезвычайно больших таблиц. Таблицы разделены на фрагменты, которые сохраняются на разных компьютерах. Фрагменты сами по себе являются таблицами Mnesia. Фрагменты могут быть реплицируемы, могут иметь индексы, и тому подобное, как любые другие таблицы. </p>
+<p>Обратитесь к документации Mnesia User Guide за дальнейшей информацией.</p>
+</blockquote>
+<h2 id="17-5-">17.5 Типы и расположения таблиц</h2>
+<p>Мы можем настраивать таблицы Mnesia многими разными способами. Во-первых, таблицы могут храниться в RAM, на диске, и одновременно в RAM+на диске. Во-вторых, таблицы могут располагаться на одной машине или реплицироваться на несколько машин. Когда мы проектируем нашу БД, мы должны думать о том, какого типа данные мы хотим хранить в тех или иных таблицах.
+Свойства таблицы могут быть такими:</p>
+<p><strong>RAM tables</strong> — Эти таблицы работают очень быстро. Данные в них непостоянны, так как теряются при сбое или перезагрузке компьютера, или когда вы останавливаете СУБД.</p>
+<p><strong>Disk tables</strong> — Хранимые на диске таблицы должны выживать при сбоях (при условии, что диск физически не пострадал).</p>
+<p>Когда транзакция записывает данные в таблицу, которая хранится на диске, реально данные,  затронутые транзакцией, сначала пишутся в дисковый журнал. Этот журнал постоянно пополняется, и через регулярные промежутки времени его информация консолидируется с другими данными в БД, после чего обработанные записи из журнала стираются. Если система падает, то при перезагрузке дисковый журнал проверяется на актуальность, и все необработанные записи из журнала заносятся в БД прежде чем БД становится доступной для работы. Как только транзакция успешно  завершилась, её данные должны быть надлежащим образом записаны в дисковый журнал, и если после этого система упала, а потом перезагружена, изменения, сделанные транзакцией, при этом не потеряются.</p>
+<p>Если же система упала во время транзакции, то все изменения, сделанные в пределах этой транзакции, должны быть потеряны.</p>
+<p>Прежде чем использовать таблицы в RAM, нужно экспериментально убедиться, что вся таблица убирается в физически доступный объём памяти. Если таблица не влезает в физическую память, система будет активно использовать файл подкачки, а это обычно убивает производительность.</p>
+<p>Поскольку таблицы RAM непостоянны, мы должны спросить себя - будет ли нам плохо, если все данные в нашей таблице RAM вдруг исчезнут? Если ответ &quot;да&quot;, то нам нужно реплицировать нашу таблицу на диск, или реплицировать её на другой компьютер (как таблицу RAM, как дисковую таблицу, или RAM+диск).</p>
+<h3 id="-">Создание таблиц</h3>
+<p>Для того, чтобы создать таблицу, мы вызываем <code>mnesia:create_table(Name, ArgS)</code>, где <code>ArgS</code> - это список кортежей вида <code>{Key,Val}</code>. <code>create_table</code> возвращает <code>{atomic, ok}</code>, если таблица была успешно создана; если нет - возвращает <code>{aborted, Reason}</code>.</p>
+<p>Вот некоторые часто используемые аргументы для создания таблиц:</p>
+<p><code>Name</code> — Задаёт имя создаваемой таблицы (это должен быть <code>atom</code>). По соглашению, это также имя соответствующей Эрланг-записи (<code>record</code>) - каждая строка в таблице будет являться экземпляром этой записи.</p>
+<p><code>{type, Type}</code> — Задаёт тип таблицы. Тип может быть одним из следующих: <code>set</code>, <code>ordered_set</code>, или <code>bag</code>. Эти типы имеют такое же значение, как описано в разделе 15.2, <em>Types of Table</em>, на странице <em>_</em>.</p>
+<p><code>{disc_copies, NodeList}</code> — <code>NodeList</code> задаёт список узлов Эрланг, на которых будут храниться дисковые копии создаваемой таблицы. Когда мы используем эту опцию, система также создаёт RAM-копию таблицы на том узле, на котором было выполнено создание таблицы. В принципе, допустимо иметь реплицируемую таблицу типа <code>disc_copies</code> на одном узле, плюс иметь ту же таблицу с другим типом на другом узле. Это делается, если мы хотим добиться следующего:</p>
+<ol>
+<li>Чтобы операции чтения были очень быстрыми и выполнялись из RAM</li>
+<li>При этом операции записи выполнялись бы в постоянное хранилище.</li>
+</ol>
+<p><code>{ram_copies, NodeList}</code> — <code>NodeList</code> задаёт список узлов Эрланг, на которых будут храниться копии в RAM.</p>
+<p><code>{disc_only_copies, NodeList}</code> — <code>NodeList</code> задаёт список узлов Эрланг, на которых будут храниться копии данных в режиме только-на-диск. Такие таблицы не имеют реплики в RAM, и, соответственно, доступ к ним медленнее.</p>
+<p><code>{attributes, AtomList}</code> — <code>AtomList</code> задаёт список имен колонок в данной таблице. Заметим, чтобы создать таблицу, содержащую экземпляры записи (<code>record</code>) с именем <code>xxx</code>, мы можем использовать синтаксис: <code>{attribute, record_info(fields, xxx)}</code> (конечно, по-другому, можно явно указать список имен).</p>
+<p><em>Примечание:</em> у функции <code>create_table</code> есть и другие опции, здесь я показал не все. За более точной информацией обратитесь к документации по Mnesia.</p>
+<h3 id="-">Часто используемые комбинации атрибутов таблиц</h3>
+<p>Во всех дальнейших примерах мы будем предполагать, что <code>Attrs</code> является кортежем вида <code>{attributes,...}</code>.</p>
+<p>Приведём здесь некоторые часто используемые опции настройки таблиц,
+покрывающих большинство типовых случаев:</p>
+<p><code>mnesia:create_table(shop, [Attrs])</code></p>
+<ul>
+<li>Таблица хранится в RAM на единственном узле.</li>
+<li>Если узел падает, таблица будет потеряна.</li>
+<li>Самый быстрый из всех методов.</li>
+<li>Таблица должна помещаться в физическую память.</li>
+</ul>
+<p><code>mnesia:create_table(shop,[Attrs,{disc_copies,[node()]}])</code></p>
+<ul>
+<li>Таблица располагается в RAM + копия на диске, на единственном узле.</li>
+<li>Если узел падает, таблица будет восстановлена с диска.</li>
+<li>Быстрые операции чтения, запись более медленная.</li>
+<li>Таблица должна помещаться в физическую память.</li>
+</ul>
+<p><code>mnesia:create_table(shop, [Attrs,{disc_only_copies,[node()]}])</code></p>
+<ul>
+<li>Копия только-на-диске на единственном узле.</li>
+<li>Большие таблицы не обязаны помещаться полностью в память.</li>
+<li>Доступ медленнее, чем к таблицам с репликой в RAM.</li>
+</ul>
+<p><code>mnesia:create_table(shop,[Attrs,{ram_copies,[node(),someOtherNode()]})</code></p>
+<ul>
+<li>Таблица хранится в RAM на двух разных узлах.</li>
+<li>Если оба узла падают, таблица будет потеряна.</li>
+<li>Таблица должна помещаться в физическую память.</li>
+<li>К таблице можно обращаться с любого из этих двух узлов.</li>
+</ul>
+<p><code>mnesia:create_table(shop,[Attrs, {disc_copies, [node(),someOtherNode()]}])</code></p>
+<ul>
+<li>Дисковые копии на двух узлах.</li>
+<li>Таблица может быть восстановлена на любом из этих двух узлов.</li>
+<li>Таблица выживает после двойного сбоя.</li>
+</ul>
+<h3 id="-">Поведение таблиц при репликации</h3>
+<p>Когда таблица реплицируется на несколько узлов Эрланг, она синхронизируется, пока это возможно. Если один узел падает, система продолжает работать, но количество реплик уменьшается. Когда упавший узел возвращается в строй, он &quot;догонит&quot; состояние таблицы, обратившись к другим узлам, где хранятся актуальные реплики. </p>
+<p><em>Заметка</em>: Mnesia может оказаться перегруженной, если узлы, на которых она запущена, прекращают работать. Если вы используете ноутбук, который &quot;засыпает&quot; при неактивности,
+то при &quot;просыпании&quot; Mnesia может оказаться временно перегруженной и выдавать множество сообщений о предупреждениях. На эти предупреждения можно не обращать внимания.</p>
+<h2 id="17-6-">17.6 Первоначальное создание базы данных</h2>
+<p>Вот так выглядят команды, создающие базу данных Mnesia. Вам нужно выполнить это лишь один раз.</p>
+<pre><code>$ erl
+1&gt; mnesia:create_schema([node()]).
+ok
+2&gt; init:stop().
+ok
+$ ls
+Mnesia.nonode@nohost
+</code></pre><p>Вызов функции <code>mnesia:create_schema(NodeList)</code> инициализирует новую базу данных Mnesia на всех узлах из списка <code>NodeList</code> (он должен содержать список реально существующих Эрланг-узлов). В нашем случае мы задаём список узлов, как <code>[node()]</code>, то есть, содержащим лишь один, текущий, узел. Mnesia инициализируется и создаёт на диске структуру каталогов с названием <code>Mnesia.nonode@nohost</code>, где физически хранит базу данных. Мы можем выйти из оболочки и выполнить команду <code>ls</code>, чтобы проверить это.</p>
+<p>Если мы повторим это упражнение на запущенном в распределённом режиме узле с именем <code>joe</code>, получим такой результат:</p>
+<pre><code>$ erl -name joe
+(joe@doris.myerl.example.com) 1&gt; mnesia:create_schema([node()]).
+mnesia:create_schema([node()]).
+ok
+2&gt; init:stop().
+ok
+$ ls
+Mnesia.joe@doris.myerl.example.com
+</code></pre><p>С другой стороны, мы можем сами указать путь к нужной нам конкретной базе данных при старте Эрланга:</p>
+<pre><code>$ erl -mnesia dir &#39;&quot;/home/joe/some/path/to/Mnesia.company&quot;&#39;
+1&gt; mnesia:create_schema([node()]).
+ok
+2&gt; init:stop().
+ok
+</code></pre><p><code>/home/joe/some/path/to/Mnesia.company</code> - это путь к директории, где будет храниться база данных.</p>
+<h2 id="17-7-the-table-viewer">17.7 The Table Viewer</h2>
+<p><img src="https://github.com/dyp2000/Russian-Armstrong-Erlang/raw/master/media/ch17pic1.jpg" alt="Table Viewer"></p>
+<p>Рисунок 17.1: Начальный экран просмоторщик таблицы </p>
+<p>Просмотрщик таблиц представляет собой GUI для просмотра таблиц Mnesia, а также таблиц ETS.
+Команда <code>tv:start()</code> запускает <code>table viewer</code>. Вы увидите начальный экран наподобие того, что приведен на рисунке 17.1. Чтобы увидеть таблицы Mnesia, вам нужно выбрать в меню <code>View</code> &gt; <code>Tab</code>. На рисунке 17.2 мы видим, как <code>table viewer</code> показывает нам таблицу <code>shop</code>
+(на следующей странице).</p>
+<p><img src="https://github.com/dyp2000/Russian-Armstrong-Erlang/raw/master/media/ch17pic2.jpg" alt="Table Viewer2"></p>
+<p>Рисунок 17.2: Просмоторщик таблицы</p>
+<h2 id="17-8-">17.8 Куда копать?</h2>
+<p>Я надеюсь, мне удалось пробудить ваш аппетит к Mnesia. Mnesia является очень мощной СУБД. Она работает в промышленном использовании в ряде весьма требовательных телекоммуникационных систем, выпускаемых компанией Ericsson с 1998 года.</p>
+<p>Поскольку вы читаете книгу об Эрланге, а не о СУБД Mnesia, мне придётся ограничиться лишь несколькими примерами наиболее типовых способов использования Mnesia. Приёмы, которые я продемонстрировал в этой главе, я использую в работе сам. Я бы не сказал, что использую (и понимаю) сильно больше того, что я уже показал вам. Но при помощи того, что я показал вам, вы можете делать довольно много, и создавать довольно развитые приложения.</p>
+<p>Перечислю главные области, которые я не включил в эту главу:</p>
+<ul>
+<li><em>Резервирование и восстановление</em>: у Mnesia есть ряд опций для настройки операций резервного копирования, подходящих для различных способов восстановления. </li>
+<li><em>&quot;грязные&quot; операции</em>: Mnesia может выполнять ряд <em>&quot;грязных&quot;</em> операций (<code>dirty_read</code>, <code>dirty_write</code>, ...). Это операции, которые выполняются в обход транзакционного контекста. Это довольно опасные операции, которыми, впрочем, можно пользоваться, если ваше приложение является однопоточным, или при некоторых других особых обстоятельствах. &quot;Грязные&quot; операции используются в целях повышения эффективности.</li>
+<li>Таблицы SNMP: Mnesia предоставляет встроенный тип таблиц SNMP. Это делает реализацию систем управления SNMP довольно простой.</li>
+</ul>
+<p>Исчерпывающий справочник по СУБД Mnesia - это Mnesia User’s Guide, его можно найти на главном сайте дистрибутивов Erlang (см Приложение C, на стр. <em>_</em>). Дополнительно, поддиректория <code>examples</code>, включенная в дистрибутив Mnesia (<code>/usr/local/lib/erlang/lib/mnesia-X.Y.Z/examples</code> на моей машине) содержит ряд примеров использования Mnesia.</p>
+<h4 id="17-9-listings">17.9 Listings</h4>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/test_mnesia.erl">test_mnesia.erl</a></p>
+<pre><code>%% ---
+%%  Excerpted from &quot;Programming Erlang&quot;,
+%%  published by The Pragmatic Bookshelf.
+%%  Copyrights apply to this code. It may not be used to create training material, 
+%%  courses, books, articles, and the like. Contact us if you are in doubt.
+%%  We make no guarantees that this code is fit for any purpose. 
+%%  Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more book information.
+%%---
+-module(test_mnesia).
+-import(lists, [foreach/2]).
+-compile(export_all).
+
+%% IMPORTANT: The next line must be included
+%%            if we want to call qlc:q(...)
+
+-include_lib(&quot;stdlib/include/qlc.hrl&quot;).
+
+-record(shop, {item, quantity, cost}).
+-record(cost, {name, price}).
+
+-record(design, {id, plan}).
+
+do_this_once() -&gt;
+    mnesia:create_schema([node()]),
+    mnesia:start(),
+    mnesia:create_table(shop,   [{attributes, record_info(fields, shop)}]),
+    mnesia:create_table(cost,   [{attributes, record_info(fields, cost)}]),
+    mnesia:create_table(design, [{attributes, record_info(fields, design)}]),
+    mnesia:stop().
+
+start() -&gt;
+    mnesia:start(),
+    mnesia:wait_for_tables([shop,cost,design], 20000).
+
+%% SQL equivalent
+%%  SELECT * FROM shop;
+
+demo(select_shop) -&gt;
+    do(qlc:q([X || X &lt;- mnesia:table(shop)]));
+
+%% SQL equivalent
+%%  SELECT item, quantity FROM shop;
+
+demo(select_some) -&gt;
+    do(qlc:q([{X#shop.item, X#shop.quantity} || X &lt;- mnesia:table(shop)]));
+
+%% SQL equivalent
+%%   SELECT shop.item FROM shop
+%%   WHERE  shop.quantity &lt; 250;
+
+demo(reorder) -&gt;
+    do(qlc:q([X#shop.item || X &lt;- mnesia:table(shop),
+                 X#shop.quantity &lt; 250
+                ]));
+
+%% SQL equivalent
+%%   SELECT shop.item
+%%   FROM shop, cost 
+%%   WHERE shop.item = cost.name 
+%%     AND cost.price &lt; 2
+%%     AND shop.quantity &lt; 250
+
+demo(join) -&gt;
+    do(qlc:q([X#shop.item || X &lt;- mnesia:table(shop),
+                 X#shop.quantity &lt; 250,
+                 Y &lt;- mnesia:table(cost),
+                 X#shop.item =:= Y#cost.name,
+                 Y#cost.price &lt; 2
+                ])).
+
+do(Q) -&gt;
+    F = fun() -&gt; qlc:e(Q) end,
+    {atomic, Val} = mnesia:transaction(F),
+    Val.
+
+example_tables() -&gt;
+    [%% The shop table
+     {shop, apple,   20,   2.3},
+     {shop, orange,  100,  3.8},
+     {shop, pear,    200,  3.6},
+     {shop, banana,  420,  4.5},
+     {shop, potato,  2456, 1.2},
+     %% The cost table
+     {cost, apple,   1.5},
+     {cost, orange,  2.4},
+     {cost, pear,    2.2},
+     {cost, banana,  1.5},
+     {cost, potato,  0.6}
+    ].
+
+add_shop_item(Name, Quantity, Cost) -&gt;
+    Row = #shop{item=Name, quantity=Quantity, cost=Cost},
+    F = fun() -&gt;
+        mnesia:write(Row)
+    end,
+    mnesia:transaction(F).
+
+remove_shop_item(Item) -&gt;
+    Oid = {shop, Item},
+    F = fun() -&gt;
+        mnesia:delete(Oid)
+    end,
+    mnesia:transaction(F).
+
+farmer(Nwant) -&gt;
+    %% Nwant = Number of oranges the farmer wants to buy
+    F = fun() -&gt;
+        %% find the number of apples
+        [Apple] = mnesia:read({shop,apple}),
+        Napples = Apple#shop.quantity,
+        Apple1  = Apple#shop{quantity = Napples + 2*Nwant},
+        %% update the database
+        mnesia:write(Apple1),
+        %% find the number of oranges
+        [Orange] = mnesia:read({shop,orange}),
+        NOranges = Orange#shop.quantity,
+        if 
+            NOranges &gt;= Nwant -&gt;
+            N1 =  NOranges - Nwant,
+            Orange1 = Orange#shop{quantity=N1},
+            %% update the database
+            mnesia:write(Orange1);
+            true -&gt;
+            %% Oops -- not enough oranges
+            mnesia:abort(oranges)
+        end
+    end,
+    mnesia:transaction(F).
+
+reset_tables() -&gt;
+    mnesia:clear_table(shop),
+    mnesia:clear_table(cost),
+    F = fun() -&gt;
+        foreach(fun mnesia:write/1, example_tables())
+    end,
+    mnesia:transaction(F).
+
+add_plans() -&gt;
+    D1 = #design{id   = {joe,1},
+         plan = {circle,10}},
+    D2 = #design{id   = fred, 
+         plan = {rectangle,10,5}},
+    D3 = #design{id   = {jane,{house,23}},
+         plan = {house,
+             [{floor,1,
+               [{doors,3},
+                {windows,12},
+                {rooms,5}]},
+              {floor,2,
+               [{doors,2},
+                {rooms,4},
+                {windows,15}]}]}},
+    F = fun() -&gt; 
+        mnesia:write(D1),
+        mnesia:write(D2),
+        mnesia:write(D3)
+    end,
+    mnesia:transaction(F).
+
+get_plan(PlanId) -&gt;
+    F = fun() -&gt; mnesia:read({design, PlanId}) end,
+    mnesia:transaction(F).
+</code></pre><hr>
+<ol>
+<li><p>SQL - это очень известный язык, используемый для доступа к реляционным СУБД.</p>
+</li>
+<li><p>На самом деле, не столь удивительно, что SQL и обработчики списков похожи.
+Обе этих вещи основаны на математической теории множеств.</p>
+</li>
+</ol>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/16" title="Previous Post: Глава 16. Введение в OTP" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 16. Введение в OTP</a></li>
+  <li class="next"><a href="http://erlangbook.tk/18" title="Next Post: Глава 18. Создание системы с использованием OTP" class="navlinks-next">Глава 18. Создание системы с использованием OTP <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

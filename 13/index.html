@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, файлы, работа с файлами, запись, запись файла, чтение, чтение файла">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 13. Работа с файлами</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 13. Работа с файлами</h1>
+			<p>В этой главе мы рассмотрим некоторые общие функции для манипулирования файлами. В стандартном релизе Эрланга есть множество функций для работы с файлами. Мы сосредоточимся на той малой их части, которую я использую в большинстве моих программ. Мы также рассмотрим некоторые примеры
+техники, которую я использую для написания эффективного кода обработки файлов. В дополнение к этому, я кратко упомяну некоторые реже используемые файловые операции, чтобы вы знали, что они есть. А если вы захотите узнать больше подробностей – обращайтесь к мануалам.</p>
+<p>Мы сосредоточимся на следующих областях:</p>
+<ul>
+<li>организация библиотек;</li>
+<li>разные способы чтения файлов;</li>
+<li>разные способы записи файлов;</li>
+<li>работа с директориями;</li>
+<li>поиск информации о файлах.</li>
+</ul>
+<h2 id="13-1-">13.1 Организация библиотек</h2>
+<p>Функции для манипулирования файлами организованы в четыре модуля:</p>
+<p><code>file</code> – функции для открытия, закрытия, чтения и записи файлов; просмотра директорий и т. д. Краткая сводка часто используемых функций приведена на Таблице 13.1. За полными подробностями обращайтесь к руководству по модулю <code>file</code>.</p>
+<p><code>filename</code> – этот модуль содержит функции, которые манипулируют именами файлов платформонезависимым образом, так, что вы можете выполнять один и тот же код на разных операционных системах.</p>
+<p><code>filelib</code> – этот модуль – дополнение к file, который содержит ряд вспомогательных функций для просмотра файлов, проверки типов файлов и т.п. Большинство из них написаны, используя функции из <code>file</code>.</p>
+<p><code>io</code> – этот модуль содержит функции, которые работают с открытыми файлами. Он содержит функции для парсинга (разбора) данных в файле и записи форматированных данных в файл.</p>
+<table>
+<thead>
+<tr>
+<th>Функция</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>change_group</code></td>
+<td>Сменить группу у файла</td>
+</tr>
+<tr>
+<td><code>change_owner</code></td>
+<td>Сменить владельца у файла</td>
+</tr>
+<tr>
+<td><code>change_time</code></td>
+<td>Сменить время модификации или последнего доступа у файла</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td>Закрыть файл</td>
+</tr>
+<tr>
+<td><code>consult</code></td>
+<td>Прочитать термы Эрланга из файла</td>
+</tr>
+<tr>
+<td><code>copy</code></td>
+<td>Копировать содержимое файла</td>
+</tr>
+<tr>
+<td><code>del_dir</code></td>
+<td>Удалить директорию</td>
+</tr>
+<tr>
+<td><code>delete</code></td>
+<td>Удалить файл</td>
+</tr>
+<tr>
+<td><code>eval</code></td>
+<td>Выполнить выражения Эрланга из файла</td>
+</tr>
+<tr>
+<td><code>format_error</code></td>
+<td>Вернуть строку с описанием причины ошибки</td>
+</tr>
+<tr>
+<td><code>get_cwd</code></td>
+<td>Получить текущую директорию</td>
+</tr>
+<tr>
+<td><code>list_dir</code></td>
+<td>Вывести список файлов в директории</td>
+</tr>
+<tr>
+<td><code>make_dir</code></td>
+<td>Создать директорию</td>
+</tr>
+<tr>
+<td><code>make_link</code></td>
+<td>Создать hard ссылку на файл</td>
+</tr>
+<tr>
+<td><code>make_symlink</code></td>
+<td>Создать soft (символическую) ссылку на файл</td>
+</tr>
+<tr>
+<td><code>open</code></td>
+<td>Открыть файл</td>
+</tr>
+<tr>
+<td><code>position</code></td>
+<td>Установить позицию в файле</td>
+</tr>
+<tr>
+<td><code>pread</code></td>
+<td>Читать из файла с указанной позиции</td>
+</tr>
+<tr>
+<td><code>pwrite</code></td>
+<td>Записать в файл с указанной позиции</td>
+</tr>
+<tr>
+<td><code>read</code></td>
+<td>Читать из файла</td>
+</tr>
+<tr>
+<td><code>read_file</code></td>
+<td>Прочитать весь файл целиком</td>
+</tr>
+<tr>
+<td><code>read_file_info</code></td>
+<td>Получить информацию о файле</td>
+</tr>
+<tr>
+<td><code>read_link</code></td>
+<td>Посмотреть — куда указывает ссылка</td>
+</tr>
+<tr>
+<td><code>read_link_info</code></td>
+<td>Получить информацию о ссылке или файле</td>
+</tr>
+<tr>
+<td><code>rename</code></td>
+<td>Переименовать файл</td>
+</tr>
+<tr>
+<td><code>script</code></td>
+<td>Выполнить и вернуть значение выражений Эрланга из файла</td>
+</tr>
+<tr>
+<td><code>set_cwd</code></td>
+<td>Установить текущую директорию</td>
+</tr>
+<tr>
+<td><code>sync</code></td>
+<td>Синхронизировать состояние файла в памяти и на физическом носителе</td>
+</tr>
+<tr>
+<td><code>truncate</code></td>
+<td>Обрезать файл</td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td>Записать в файл</td>
+</tr>
+<tr>
+<td><code>write_file</code></td>
+<td>Записать весь файл целиком</td>
+</tr>
+<tr>
+<td><code>write_file_info</code></td>
+<td>Сменить информацию о файле</td>
+</tr>
+</tbody>
+</table>
+<p><em>Таблица 13.1: Сводка файловых операций (модуль <code>file</code>)</em></p>
+<h3 id="-">Разные способы чтения файлов</h3>
+<p>Давайте глянем – что у нас есть, когда дело доходит до чтения файлов. Мы  начнём с написания пяти маленьких программок, которые открывают файл иберут оттуда данные несколькими разными способами.</p>
+<p>Содержимое файла — это просто последовательность байт. Что они значат — зависит от интерпретации этих байтов.</p>
+<p>Чтобы продемонстрировать это мы будем использовать один и тот же файл для всех наших примеров. Вообще-то, он содержит последовательность термов Эрланга. В зависимости от того, как мы открываем и читаем файл, мы можем интерпретировать содержимое как последовательность термов Эрланга, как последовательность текстовых строк или как куски бессмысленных и беспощадных бинарных данных.</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/data1.dat">data1.dat</a></p>
+<pre><code>{person, &quot;joe&quot; , &quot;armstrong&quot; ,
+        [{occupation, programmer},
+         {favoriteLanguage, erlang}]}.
+{cat, {name, &quot;zorro&quot; },
+      {owner, &quot;joe&quot; }}.
+</code></pre><p>А теперь мы прочитаем части этого файла разными способами.</p>
+<h3 id="-">Чтение всех термов из файла</h3>
+<p><code>data1.dat</code> содержит последовательность термов Эрланга. Мы можем прочитать их все, используя функцию file:consult следующим образом:</p>
+<pre><code>1&gt; file:consult(&quot;data1.dat&quot;).
+{ok,[{person,&quot;joe&quot;,
+&quot;armstrong&quot;,
+[{occupation,programmer},{favoriteLanguage,erlang}]},
+{cat,{name,&quot;zorro&quot;},{owner,&quot;joe&quot;}}]}
+</code></pre><p><code>file:consult(File)</code> полагает, что <code>File</code> содержит последовательность термов Эрланга. Она возвращает <code>{ok, [Term]}</code>, если может прочитать все термы из файла. В противном случае она возвращает <code>{error, Reason}</code>.</p>
+<h3 id="-">Чтение термов по одному за раз</h3>
+<p>Если мы хотим прочитать термы из файла по одному за раз, то мы открываем файл функцией <code>file:open</code>, а затем читаем отдельные термы функцией <code>io:read</code> до тех пор, пока не дойдём до конца файла. Затем мы закрываем файл функцией <code>file:close</code>.</p>
+<p>Вот сеанс в оболочке Эрланга, который показывает что происходит, когда мы читаем термы из файла по одному за раз:</p>
+<pre><code>1&gt; {ok, S} = file:open(&quot;data1.dat&quot;, read).
+{ok,&lt;0.36.0&gt;}
+2&gt; io:read(S, &#39;&#39;).
+{ok,{person,&quot;joe&quot;,
+&quot;armstrong&quot;,
+[{occupation,programmer},{favoriteLanguage,erlang}]}}
+3&gt; io:read(S, &#39;&#39;).
+{ok,{cat,{name,&quot;zorro&quot;},{owner,&quot;joe&quot;}}}
+4&gt; io:read(S, &#39;&#39;).
+eof
+5&gt; file:close(S)
+</code></pre><p>Функции, которые мы здесь использовали, следующие:</p>
+<pre><code>@spec file:open(File, read) =&gt; {ok, IoDevice} | {error, Why}
+</code></pre><p>Пытается открыть файл <code>File</code> для чтения. Возвращает <code>{ok, IoDevice}</code> в случае успеха, либо <code>{error, Reason}</code> в случае ошибки. <code>IoDevice</code> — это некий дескриптор, который используется для доступа к файлу.</p>
+<pre><code>@spec io:read(IoDevice, Prompt) =&gt; {ok, Term} | {error,Why} | eof
+</code></pre><p>Читает терм Эрланга из <code>IoDevice</code>. Подсказка Prompt игнорируется если <code>IoDevice</code> представляет собой открытый файл. Подсказка <code>Prompt</code> используется для выдачи подсказки только если мы используем <code>io:read</code> для чтения стандартного ввода.</p>
+<pre><code>@spec file:close(IoDevice) =&gt; ok | {error, Why}
+</code></pre><p>Закрывает <code>IoDevice</code>.</p>
+<p>Используя эти функции мы можем реализовать <code>file:consult</code>, который мы использовали в предыдущей части. Вот, как <code>file:consult</code> может быть определён:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">lib_misc.erl</a></p>
+<pre><code>consult(File) -&gt;
+    case file:open(File, read) of
+        {ok, S} -&gt;
+            Val = consult1(S),
+            file:close(S),
+            {ok, Val};
+        {error, Why} -&gt;
+            {error, Why}
+    end.
+
+consult1(S) -&gt;
+    case io:read(S, &#39;&#39;) of
+        {ok, Term}    -&gt; [Term|consult1(S)];
+        eof            -&gt; [];
+        Error        -&gt; Error
+    end.
+</code></pre><p>На самом деле <code>file:consult</code> определён не так. Стандартная библиотека использует улучшенную обработку ошибок.</p>
+<p>Ну а теперь пришло время посмотреть на версию из стандартной библиотеки. Если вы поняли, как работает предыдущая версия функции, то вы легко поймёте код из библиотеки. Вот только есть одна проблема. Как найти исходный код для <code>file.erl</code>? Для нахождения кода мы используем функцию <code>code:which</code>, которая обнаруживает объектный код для любого загруженного модуля.</p>
+<pre><code>1&gt; code:which(file).
+&quot;/usr/local/lib/erlang/lib/kernel-2.11.2/ebin/file.beam&quot;
+</code></pre><p>В стандартном релизе у каждой библиотеки есть две поддиректории. Одна, называемая <code>src</code>, содержит исходный код. Другая, называемая <code>ebin</code>, содержит скомпилированный Эрланг код. Так что исходный код для файла <code>file.erl</code> должен находиться в следующей директории:</p>
+<pre><code>/usr/local/lib/erlang/lib/kernel-2.11.2/src/file.erl
+</code></pre><p>В случае, когда ничего уже не помогает, а документация не даёт ответов на ваши вопросы, быстрый взгляд в исходный код может помочь с ответом. Я знаю, что этого (поиска ответа в исходниках) не должно происходить, но все мы люди и иногда документация просто не помогает.</p>
+<h3 id="-">Чтение строк из файла по одной за раз</h3>
+<p>Если заменить <code>io:read</code> на <code>io:get_line</code>, то мы можем прочитать строки из файла по одной за раз. <code>io:get_line</code> читает символы до тех пор, пока не встретит символ перевода строки или конец файла. Вот пример:</p>
+<pre><code>1&gt; {ok, S} = file:open(&quot;data1.dat&quot;, read).
+{ok,&lt;0.43.0&gt;}
+2&gt; io:get_line(S, &#39;&#39;).
+&quot;{person, \\&quot;joe\\&quot;, \\&quot;armstrong\\&quot;,\\n&quot;
+3&gt; io:get_line(S, &#39;&#39;).
+&quot;\\t[{occupation, programmer},\\n&quot;
+4&gt; io:get_line(S, &#39;&#39;).
+&quot;\\t {favoriteLanguage, erlang}]}.\\n&quot;
+5&gt; io:get_line(S, &#39;&#39;).
+&quot;\\n&quot;
+6&gt; io:get_line(S, &#39;&#39;).
+&quot;{cat, {name, \\&quot;zorro\\&quot;},\\n&quot;
+7&gt; io:get_line(S, &#39;&#39;).
+&quot; {owner, \\&quot;joe\\&quot;}}.\\n&quot;
+8&gt; io:get_line(S, &#39;&#39;).
+eof
+9&gt; file:close(S).
+ok
+</code></pre><h3 id="-">Чтение всего файла целиком как бинарный объект</h3>
+<p>Вы можете использовать <code>file:read_file(File)</code>, чтобы прочитать файл целиком в бинарный объект, используя следующую атомарную операцию:</p>
+<pre><code>1&gt; file:read_file(&quot;data1.dat&quot;).
+{ok,&lt;&lt;&quot;{person, \\&quot;joe\\&quot;, \\&quot;armstrong\\&quot;&quot;...&gt;&gt;}
+</code></pre><p><code>file:read_file(File)</code> возвращает <code>{ok, Bin}</code> в случае успеха и <code>{error,Why}</code> в противном случае.</p>
+<p>Это явно лучший способ чтения файлов и я использую этот способ наиболее часто. В большинстве случаев я читаю файл целиком в память одной операцией, работаю над содержимым файла и сохраняю файл тоже одной операцией (используя <code>file:write_file)</code>. У нас будет пример для данного способа работы.</p>
+<h3 id="-">Чтение файла с произвольным доступом</h3>
+<p>Если файл, который мы хотим прочитать, очень большой или содержит бинарные данные в формате, который определён где-то вовне, то мы можем открыть файл в сыром (raw) режиме и читать порции файла операцией <code>file:pread</code>.</p>
+<p>Пример:</p>
+<pre><code>1&gt; {ok, S} = file:open(&quot;data1.dat&quot;, [read,binary,raw]).
+{ok,{file_descriptor,prim_file,{\#Port&lt;0.106&gt;,5}}}
+2&gt; file:pread(S, 22, 46).
+{ok,&lt;&lt;&quot;rong\\&quot;,\\n\\t[{occupation, progr...&gt;&gt;}
+3&gt; file:pread(S, 1, 10).
+{ok,&lt;&lt;&quot;person, \\&quot;j&quot;&gt;&gt;}
+4&gt; file:pread(S, 2, 10).
+{ok,&lt;&lt;&quot;erson, \\&quot;jo&quot;&gt;&gt;}
+5&gt; file:close(S).
+</code></pre><p><code>file:pread(IoDevice, Start, Len)</code> читает точно <code>Len</code> байт из <code>IoDevice</code>, начиная с байта в позиции <code>Start</code> (байты в файле нумеруются так, что первый байт находится в позиции 1) (прим. перев. - так в книге. В документации — всё по-другому). Она возвращает <code>{ok, Bin}</code> или <code>{error,Why}</code>.</p>
+<p>В заключение, мы используем функции для произвольного доступа к файлу для написания утилиты, которая нам понадобится в следующей главе. В части 14.7 «Широковещательный сервер» мы разработаем простой широковещательный сервер (это сервер для так называемого потокового вещания. В данном случае — для вещания MP3). Часть этого сервера нуждается в поиске исполнителя и названий композиций, которые внедрены в файл MP3. Мы сделаем это в следующей части.</p>
+<h3 id="-mp3">Чтение тегов MP3</h3>
+<p>MP3 — это бинарный формат, используемый для хранения сжатых звуковых данных. MP3 файлы сами по себе не содержат информацию о содержимом файла. К примеру в MP3 файле с музыкой не будет имени исполнителя. Эти данные (название композиции, исполнитель и прочее) хранятся внутри MP3
+файла в специальном блочном формате ID3. Теги ID3 были придуманы программистом Eric Kemp для хранения метаданных, описывающих содержимое звукового файла. Вообще-то, есть несколько форматов ID3, но для наших целей мы будем использовать простейшие формы тегов — ID3v1 и ID3v1.1.</p>
+<p>У тега ID3v1 простая структура — это последние 128 байт файла, содержащие тег фиксированной длины. Первые 3 байта содержат ASCII символы TAG, за которыми идут ряд полей фиксированной длины. Полностью эта 128 байтовая структура показана далее:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:right">Длина</th>
+<th>Содержимое</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">3</td>
+<td>Заголовок, содержащий символы TAG</td>
+</tr>
+<tr>
+<td style="text-align:right">30</td>
+<td>название</td>
+</tr>
+<tr>
+<td style="text-align:right">30</td>
+<td>исполнитель</td>
+</tr>
+<tr>
+<td style="text-align:right">30</td>
+<td>альбом</td>
+</tr>
+<tr>
+<td style="text-align:right">4</td>
+<td>год</td>
+</tr>
+<tr>
+<td style="text-align:right">30</td>
+<td>комментарий</td>
+</tr>
+<tr>
+<td style="text-align:right">1</td>
+<td>жанр</td>
+</tr>
+</tbody>
+</table>
+<p>В теге ID3v1 не было места, чтобы добавить номер композиции. Способ, реализующий это был предложен Michael Mutschler в формате ID3v1.1. Идея в том, чтобы заменить 30 байтовый комментарий следующим:</p>
+<p>| Длина | Содержимое |
+| 28 | Комментарий |
+| 1 | 0 (ноль) |
+| 1 | Номер композиции |</p>
+<p>Легко написать программу, которая будет читать теги ID3v1 из MP3 файла и сопоставлять поля, используя бинарное битовое сопоставление с образцом. Вот эта программа:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/id3_v1.erl">id3_v1.erl</a></p>
+<pre><code>-module(id3_v1).
+-import(lists, [filter/2, map/2, reverse/1]).
+-export([test/0, dir/1, read_id3_tag/1]).
+
+test() -&gt; dir(&quot;/home/joe/music_keep&quot; ).
+
+dir(Dir) -&gt;
+    Files = lib_find:files(Dir, &quot;*.mp3&quot; , true),
+    L1 = map(fun(I) -&gt;
+                    {I, (catch read_id3_tag(I))}
+         end, Files),
+%% L1 = [{File, Parse}] where Parse = error | [{Tag,Val}]
+%% we now have to remove all the entries from L where
+%% Parse = error. We can do this with a filter operation
+L2 = filter(fun({_,error}) -&gt; false;
+                (_) -&gt; true
+            end, L1),
+lib_misc:dump(&quot;mp3data&quot; , L2).
+
+read_id3_tag(File) -&gt;
+    case file:open(File, [read,binary,raw]) of
+        {ok, S} -&gt;
+            Size = filelib:file_size(File),
+        {ok, B2} = file:pread(S, Size-128, 128),
+            Result = parse_v1_tag(B2),
+            file:close(S),
+            Result;
+        Error -&gt;
+            {File, Error}
+    end.
+
+parse_v1_tag(&lt;&lt;$T,$A,$G,
+                Title:30/binary, Artist:30/binary,
+                Album:30/binary, _Year:4/binary,
+                _Comment:28/binary, 0:8,Track:8,_Genre:8&gt;&gt;) -&gt;
+
+    {&quot;ID3v1.1&quot; ,
+     [{track,Track}, {title,trim(Title)},
+      {artist,trim(Artist)}, {album, trim(Album)}]};
+parse_v1_tag(&lt;&lt;$T,$A,$G,
+            Title:30/binary, Artist:30/binary,
+            Album:30/binary, _Year:4/binary,
+            _Comment:30/binary,_Genre:8&gt;&gt;) -&gt;
+    {&quot;ID3v1&quot; ,
+     [{title,trim(Title)},
+      {artist,trim(Artist)}, {album, trim(Album)}]};
+parse_v1_tag(_) -&gt;
+    error.
+
+trim(Bin) -&gt;
+    list_to_binary(trim_blanks(binary_to_list(Bin))).
+
+trim_blanks(X) -&gt; reverse(skip_blanks_and_zero(reverse(X))).
+
+skip_blanks_and_zero([$\\s|T])    -&gt; skip_blanks_and_zero(T);
+skip_blanks_and_zero([0|T])        -&gt; skip_blanks_and_zero(T);
+skip_blanks_and_zero(X)            -&gt; X.
+</code></pre><p>Основная точка входа нашей программы — это <code>id3_v1:dir(Dir)</code>. Первое, что мы делаем — это ищем все наши MP3 файлы, вызывая <code>lib_find:find(Dir, &quot;*.mp3&quot;, true)</code> (утилита поиска показана далее в части 13.8), которая рекурсивно сканирует директории ниже <code>Dir</code> на предмет файлов MP3. Найдя файл, мы разбираем теги, вызывая <code>read_id3_tag</code>. Разбор сильно упрощён, потому что мы используем простое битовое сопоставление с образцом. После этого мы подчищаем имена исполнителей и названия композиций, удаляя завершающие пробелы и нулевые символы, которые разделяют строки. В конце мы выводим результат в файл для дальнейшего использования (<code>lib_misc:dump</code> описывается в части E.2, Техника отладки).</p>
+<p>Большинство музыкальных файлов помечены тегами ID3v1, даже если они дополнительно содержат ещё и теги стандартов ID3v2, v3, v4, добавленные позже, отформатированные по-другому и находящиеся в начале файла (или, что более редко — в середине файла). Программы для  тегирования часто добавляют как ID3v1, так и дополнительные (и более трудные для чтения)
+теги в начало файла. Для наших целей мы сосредоточимся только на файлах, содержащих корректные теги ID3v1 и ID3v1.1.</p>
+<p>Теперь, когда мы знаем, как читать файл, мы можем перейти к различным способам записи файла.</p>
+<h2 id="13-3-">13.3 Разные способы записи файлов</h2>
+<p>Запись в файл включает в себя достаточно много таких же операций, как и чтение файла. Рассмотрим их подробнее.</p>
+<h3 id="-">Запись списка термов в файл</h3>
+<p>Предположим, что мы хотим создать файл, который мы сможем прочитать функцией <code>file:consult</code>. Стандартная библиотека вообще-то не содержит такой функции, так что мы напишем свою собственную. Назовём эту функцию <code>unconsult</code>.</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">lib_misc.erl</a></p>
+<pre><code>unconsult(File, L) -&gt;
+    {ok, S} = file:open(File, write),
+    lists:foreach(fun(X) -&gt; io:format(S, &quot;\~p.\~n&quot; ,[X]) end, L),
+    file:close(S).
+</code></pre><p>Мы можем выполнить это из оболочки Эрланга, чтобы создать файл, называемый <code>test1.dat</code>:</p>
+<pre><code>1&gt; lib_misc:unconsult(&quot;test1.dat&quot;,
+[{cats,[&quot;zorrow&quot;,&quot;daisy&quot;]},
+{weather,snowing}]).
+ok
+</code></pre><p>Удостоверимся, что это действительно OK:</p>
+<pre><code>2&gt; file:consult(&quot;test1.dat&quot;).
+{ok,[{cats,[&quot;zorrow&quot;,&quot;daisy&quot;]},{weather,snowing}]}
+</code></pre><p>Чтобы реализовать unconsult мы открываем файл на запись и затем используем <code>io:format(S, &quot;\~p.\~n&quot;, [X])</code> для записи термов в файл. <code>io:format</code> — это рабочая лошадка для создания форматированного вывода. Для выполнения форматированного вывода мы вызываем функцию:</p>
+<pre><code>@spec io:format(IoDevice, Format, Args) -&gt; ok
+</code></pre><p><code>IoDevice</code> — это некое устройство ввода-вывода (которое было открыто в режиме записи), <code>Format</code> — это строка, содержащая коды форматирования, а <code>Args</code> — это список элементов для вывода.</p>
+<p>Для каждого элемента из <code>Args</code> в строке формата должна присутствовать команда форматирования. Команды форматирования начинаются с тильды <code>~</code>.</p>
+<p>Вот некоторые наиболее часто используемые команды форматирования:</p>
+<p><code>~n</code> - Перевод строки. <code>~n</code> достаточно умён, так что работает платформонезависимо — на Unix — выведет в поток вывода ASCII (10), а на Windows — ASCII (13, 10)</p>
+<p><code>~p</code> - Структурная распечатка аргумента</p>
+<p><code>~s</code> - Аргумент является строкой</p>
+<p><code>~w</code> - Вывод данных со стандартным синтаксисом. Используется для вывода термов Эрланга</p>
+<p>У форматной строки есть масса аргументов, которые никто не будет запоминать в здравом уме. Как говорил Эйнштейн — для констант есть справочники. А для полного списка параметров формата есть руководство по модулю <code>io</code>. Я помню только <code>~p</code>, <code>~s</code> и <code>~n</code>. Если вы начнёте с них, у вас не возникнет лишних проблем.</p>
+<h3 id="-">Лирическое отступление</h3>
+<p>Я соврал. Вам наверняка понадобится больше, чем просто <code>~p</code>, <code>~s</code>, <code>~n</code>. Вот пара примеров:</p>
+<table>
+<thead>
+<tr>
+<th>Формат</th>
+<th>Результат</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>`io:format(&quot;\</td>
+<td>~10s\</td>
+<td>~n&quot;, [&quot;abc&quot;])`</td>
+<td>`\</td>
+<td>⎵⎵⎵⎵⎵⎵⎵⎵abc\</td>
+<td>`</td>
+</tr>
+<tr>
+<td>`io:format(&quot;\</td>
+<td>~-10s\</td>
+<td>~n&quot;, [&quot;abc&quot;])`</td>
+<td>`\</td>
+<td>abc⎵⎵⎵⎵⎵⎵⎵⎵\</td>
+<td>`</td>
+</tr>
+<tr>
+<td>`io:format(&quot;\</td>
+<td>~10.3.+s\</td>
+<td>~n&quot;,[&quot;abc&quot;])`</td>
+<td>`\</td>
+<td>+++++++abc\</td>
+<td>`</td>
+</tr>
+<tr>
+<td>`io:format(&quot;\</td>
+<td>~10.10.+s\</td>
+<td>~n&quot;,[&quot;abc&quot;])`</td>
+<td>`\</td>
+<td>abc+++++++\</td>
+<td>`</td>
+</tr>
+<tr>
+<td>`io:format(&quot;\</td>
+<td>~10.7.+s\</td>
+<td>~n&quot;,[&quot;abc&quot;])`</td>
+<td>`\</td>
+<td>+++abc++++\</td>
+<td>`</td>
+</tr>
+</tbody>
+</table>
+<h3 id="-">Запись строк в файл</h3>
+<p>Это похоже на предыдущий пример — мы просто используем другие команды форматирования:</p>
+<pre><code>1&gt; {ok, S} = file:open(&quot;test2.dat&quot;, write).
+{ok,&lt;0.62.0&gt;}
+2&gt; io:format(S, &quot;\~s\~n&quot;, [&quot;Hello readers&quot;]).
+ok
+3&gt; io:format(S, &quot;\~w\~n&quot;, [123]).
+ok
+4&gt; io:format(S, &quot;\~s\~n&quot;, [&quot;that&#39;s it&quot;]).
+ok
+5&gt; file:close(S).
+</code></pre><p>Это создаёт файл называемый <code>test2.dat</code> со следующим содержимым:</p>
+<pre><code>Hello readers
+123
+that&#39;s it
+</code></pre><h3 id="-">Запись всего файла целиком одной операцией</h3>
+<p>Это наиболее эффективный способ записи в файл. Функция <code>file:write_file(File, IO)</code> записывает данные IO (который является списком ввода-вывода, т. е. списком, элементами которого могут быть другие списки ввода-вывода, бинарные данные, целые числа от 0 до 255) в файл <code>File</code>. При записи список автоматически плющится (делается плоским — <code>flattened</code>, т. е. все квадратные скобки устраняются). Этот способ крайне эффективен и я этим частенько пользуюсь. Программа в следующей части демонстрирует это.</p>
+<h3 id="-url-">Вывод URL-ов из файла</h3>
+<p>Давайте напишем простенькую функцию, называемую <code>urls2htmlFile(L, File)</code>, которая берет список ULR-ов <code>L</code> и создаёт HTML файл, где URL-ы представлены в виде кликабельных ссылок. Это позволит нам отработать технику создания целого файла одной-единственной операцией ввода-вывода.</p>
+<p>Мы поместим нашу программу в модуль <code>scavenge_url</code>.</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/scavenge_urls.erl">scavenge_urls.erl</a></p>
+<pre><code>-module(scavenge_urls).
+-export([urls2htmlFile/2, bin2urls/1]).
+-import(lists, [reverse/1, reverse/2, map/2]).
+
+urls2htmlFile(Urls, File) -&gt;
+    file:write_file(File, urls2html(Urls)).
+
+bin2urls(Bin) -&gt; gather_urls(binary_to_list(Bin), []).
+</code></pre><p>В программе две точки входа. <code>urls2htmlFile(Urls, File)</code> берёт список URL-ов и создаёт HTML файл, содержащий кликабельные ссылки для каждого URL. <code>bin2urls(Bin)</code> ищет по бинарным данным и возвращает список всех URL-ов, содержащихся в этих данных. Вот <code>urls2htmlFile</code>:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/scavenge_urls.erl">scavenge_urls.erl</a></p>
+<pre><code>urls2html(Urls) -&gt; [h1(&quot;Urls&quot; ),make_list(Urls)].
+
+h1(Title) -&gt; [&quot;&lt;h1&gt;&quot; , Title, &quot;&lt;/h1&gt;\\n&quot; ].
+
+make_list(L) -&gt;
+    [&quot;&lt;ul&gt;\\n&quot; ,
+    map(fun(I) -&gt; [&quot;&lt;li&gt;&quot; ,I,&quot;&lt;/li&gt;\\n&quot; ] end, L),
+    &quot;&lt;/ul&gt;\\n&quot; ].
+</code></pre><p>Этот код возвращает вложенный список символов. Заметьте, что мы не делали попыток сплющить список (что было бы довольно неэффективно). Мы создали вложенный список символов и просто отправили его в функцию вывода. Когда мы записываем вложенный список в файл функцией <code>file:write_file</code> система ввода-вывода автоматически плющит список (т. е. записывает только символы из списка, но не скобки, создающие структуры списка). Ну и в конце — код, извлекающий URL-ы из бинарных данных:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/scavenge_urls.erl">scavenge_urls.erl</a></p>
+<pre><code>gather_urls(&quot;&lt;a href&quot; ++ T, L) -&gt;
+    {Url, T1} = collect_url_body(T, reverse(&quot;&lt;a href&quot; )),
+    gather_urls(T1, [Url|L]);
+gather_urls([_|T], L) -&gt;
+    gather_urls(T, L);
+gather_urls([], L) -&gt;
+    L.
+
+collect_url_body(&quot;&lt;/a&gt;&quot; ++ T, L)    -&gt; {reverse(L, &quot;&lt;/a&gt;&quot; ), T};
+collect_url_body([H|T], L)            -&gt; collect_url_body(T, [H|L]);
+collect_url_body([], _)                -&gt; {[],[]}.
+</code></pre><p>Чтобы выполнить это, нам надо иметь данные для разбора. Входные данные (бинарные данные) — это содержимое HTML страницы, так что нам нужна HTML страница для очистки от мусора. Для этого мы используем <code>socket_examples:nano_get_url</code> (см. главу 14.1, извлечение данных с сервера). Будем делать это по шагам в оболочке Эрланга:</p>
+<pre><code>1&gt; B = socket_examples:nano_get_url(&quot;www.erlang.org&quot;),
+L = scavenge_urls:bin2urls(B),
+scavenge_urls:urls2htmlFile(L, &quot;gathered.html&quot;).
+ok
+</code></pre><p>Это создаст файл <code>gathered.html</code>:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/gathered.html">gathered.html</a></p>
+<pre><code>&lt;h1&gt;Urls&lt;/h1&gt;
+&lt;ul&gt;
+    &lt;li&gt;&lt;a href=&quot;old_news.html&quot; &gt;Older news.....&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;
+        &lt;a href=&quot;http://www.erlang-consulting.com/training_fs.html&quot;&gt;
+        here&lt;/a&gt;
+    &lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;project/megaco/&quot; &gt;Megaco home&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;EPLICENSE&quot; &gt;Erlang Public License (EPL)&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;user.html\#smtp_client-1.0&quot;&gt;smtp_client-1.0&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;download-stats/&quot; &gt;download statistics graphs&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;project/test_server&quot; &gt;Erlang/OTP Test Server&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;http://www.erlang.se/euc/06/&quot; &gt;proceedings&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;/doc/doc-5.5.2/doc/highlights.html&quot; &gt;
+        Read more in the release highlights.
+    &lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;index.html&quot; &gt;&lt;img src=&quot;images/erlang.gif&quot;
+        border=&quot;0&quot; alt=&quot;Home&quot; &gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+</code></pre><h3 id="-">Запись файлов с произвольным доступом</h3>
+<p>Запись в файл с произвольным доступом подобна чтению. Сначала мы должны открыть файл в режиме записи. Затем мы используем <code>file:pwrite(Position, Bin)</code> для записи в файл. Вот пример:</p>
+<pre><code>1&gt; {ok, S} = file:open(&quot;...&quot;, [raw,write,binary])
+{ok, ...}
+2&gt; file:pwrite(S, 10, &lt;&lt;&quot;new&quot;&gt;&gt;)
+ok
+3&gt; file:close(S)
+ok
+</code></pre><p>Этот код записывает символы &quot;new&quot;, начиная со смещения 10 в файле, перезаписывая имеющееся содержимое файла.</p>
+<h3 id="-">Операции над директориями</h3>
+<p>Для операций над директориями в модуле <code>file</code> есть три функции. <code>list_dir(Dir)</code> используется для получения списка файлов в <code>Dir</code>, <code>make_dir(Dir)</code> создаёт новую директорию и <code>del_dir(Dir)</code> удаляет директорию.</p>
+<p>Если мы выполним <code>list_dir</code> в директории с кодом, которую я использую при написания этой книги, то мы увидим следующее:</p>
+<pre><code>1&gt; cd(&quot;/home/joe/book/erlang/Book/code&quot;).
+/home/joe/book/erlang/Book/code
+ok
+2&gt; file:list_dir(&quot;.&quot;).
+{ok,[&quot;id3_v1.erl\~&quot;,
+&quot;update_binary_file.beam&quot;,
+&quot;benchmark_assoc.beam&quot;,
+&quot;id3_v1.erl&quot;,
+&quot;scavenge_urls.beam&quot;,
+&quot;benchmark_mk_assoc.beam&quot;,
+&quot;benchmark_mk_assoc.erl&quot;,
+&quot;id3_v1.beam&quot;,
+&quot;assoc_bench.beam&quot;,
+&quot;lib_misc.beam&quot;,
+&quot;benchmark_assoc.erl&quot;,
+&quot;update_binary_file.erl&quot;,
+&quot;foo.dets&quot;,
+&quot;big.tmp&quot;,
+..
+</code></pre><p>Заметьте, что файлы в списке никак не упорядочены, никак не видно признаков, что данное имя является файлом или директорией, нет длин, вообще ничего нет.</p>
+<p>Чтобы найти больше информации об индивидуальном файле в директории мы используем функцию <code>file:read_file_info</code>, которая подробнее описывается в следующей части.</p>
+<h3 id="-">Поиск информации о файле</h3>
+<p>Для нахождения информации о файле <code>F</code> мы вызываем функцию <code>file:read_file_info(F)</code>. Она возвращает <code>{ok, Info}</code>, если <code>F</code> — это правильное имя файла или директории. <code>Info</code> — это запись (record) типа <code>#file_info</code>, которая определена так:</p>
+<pre><code>-record(file_info,
+        {size,            % Размер файла в байтах
+         type,            % Атом: device, directory, regular, other
+         access,        % Атом: read, write, read_write, none
+         atime,            % Локальное время последнего чтения файла
+         mtime,            % Локальное время последней записи файла
+         ctime,            % Интерпретация этого поля зависит от 
+                         % операционной 
+                         % системы. В Unix это время последнего 
+                         % изменения файла 
+                         % или inode. В Windows — это время создания
+                         % файла
+         mode,            % Целое число: права на файл. В Windows права
+                         % владельца
+                         % будут дублироваться для группы и пользователя
+         links,            % Количество ссылок на файл (1, если файловая 
+                         % система не поддерживает ссылки)
+         major_device,    % Целое число: показывает файловую систему
+                         % (в Unix) или номер устройства 
+                         % (A: = 0, B: = 1) (Windows)
+</code></pre><p><em>Замечание</em>: поля прав <code>mode</code> и доступа <code>access</code> перекрываются. Вы можете использовать права, чтобы установить несколько файловых атрибутов одной операцией. Впрочем, вы можете использовать access для простых операций.</p>
+<p>Чтобы найти длину и тип файла мы вызываем функцию <code>read_file_info</code> (заметьте, что нам приходится подключать <code>file.hrl</code>, который содержит определение записи <code>#file_info</code>):</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">lib_misc.erl</a></p>
+<pre><code>-include_lib(&quot;kernel/include/file.hrl&quot; ).
+file_size_and_type(File) -&gt;
+    case file:read_file_info(File) of
+        {ok, Facts} -&gt;
+            {Facts\#file_info.type, Facts\#file_info.size};
+        _ -&gt;
+            error
+    end.
+</code></pre><p>Теперь можно слегка улучшить вид списка, выведенного функцией <code>list_file</code>, добавив информацию о файлах в функции <code>ls()</code>:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">lib_misc.erl</a></p>
+<pre><code>ls(Dir) -&gt;
+{ok, L} = file:list_dir(Dir),
+map(fun(I) -&gt; {I, file_size_and_type(I)} end, sort(L)).
+</code></pre><p>Теперь список отсортирован и вдобавок содержит полезную информацию:</p>
+<pre><code>1&gt; lib_misc:ls(&quot;.&quot;).
+[{&quot;Makefile&quot;,{regular,1244}},
+{&quot;README&quot;,{regular,1583}},
+{&quot;abc.erl&quot;,{regular,105}},
+{&quot;alloc_test.erl&quot;,{regular,303}},
+...
+{&quot;socket_dist&quot;,{directory,4096}},
+...
+</code></pre><p>Дополнительное удобство в том, что модуль <code>filelib</code> экспортирует несколько маленьких функций, таких как <code>file_size(File)</code> и <code>is_dir(X)</code>. Это просто интерфейсы к <code>file:read_file_info</code>. Если нам надо всего лишь размер файла, то проще вызвать <code>filelib:file_size</code>, чем <code>file:read_file_info</code> и распаковывать элементы записи <code>#file_info</code>.</p>
+<h3 id="-">Копирование и удаление файлов</h3>
+<p><code>file:copy(Source, Destination)</code> копирует файл Source в файл <code>Destination</code>.</p>
+<p><code>file:delete(File)</code> удаляет файл <code>File</code>.</p>
+<h3 id="-">Всякая всячина</h3>
+<p>К текущему моменту мы упомянули ряд функций, которые я ежедневно использую для манипулирования файлами. И крайне редко мне приходится обращаться к документации за дополнительной информацией. Что же я пропустил такого, что может вам понадобиться? Я приведу краткий обзор основных вещей. А за подробными деталями обращайтесь к документации.</p>
+<p>Режим файла: когда мы открываем файл функцией <code>file:open</code>, мы открываем его в определённом режиме или комбинацией режимов. Вообще-то есть много разных режимов. К примеру, можно открыть файл на чтение и запись сжатого gzip файла. Ну и т. д. Полный список как обычно находится в
+документации.</p>
+<p>Время модификации, группы, ссылки: мы можем установить всё это функциями из <code>file</code>.</p>
+<p>Коды ошибок: я опрометчиво сказал, что у всех ошибок вид <code>{error, Why}</code>. На самом деле <code>Why</code>— это атом (к примеру, <code>enoent</code> означает, что файл не существует и т. д.) - есть большое количество кодов ошибок и все они описаны в документации.</p>
+<p><code>filename</code>: модуль <code>filename</code> содержит некоторые полезные функции для сбора полных имён файлов и директорий, поиска расширений файлов и прочего, а также для построения имён файлов из компонентов пути. Всё это делается платформонезависимым образом.</p>
+<p><code>fillib</code>: модуль <code>filelib</code> содержит небольшое количество функций, которые помогают сэкономить нам время. Например, <code>filelib:ensure_dir(Name)</code> обеспечивает, что все родительские директории для данного файла или директории существуют, создавая их при необходимости.</p>
+<h3 id="-">Программа поиска</h3>
+<p>И как финальный пример, мы используем <code>file:list_dir</code> и <code>file:read_file_info</code> для создания программы поиска общего назначения.</p>
+<p>Главная точка входа в этот модуль следующая:</p>
+<pre><code>lib_find:files(Dir, RegExp, Recursive, Fun, Acc0)
+</code></pre><p>Аргументы для неё:</p>
+<p><code>Dir</code> — имя директории, откуда начинать поиск файла</p>
+<p><code>RegExp</code> — регулярное выражение для проверки имени найденного файла. Если файлы, которые мы встретим, совпадают с этим регулярным выражением, то вызывается функция <code>Fun(File, Acc)</code>, где <code>File</code> — это имя файла, которое успешно сопоставлено с регулярным выражением.</p>
+<p><code>Recursive = true | false</code> — это признак, который определяет будет ли поиск заходить в поддиректории текущей директории.</p>
+<p><code>Fun(File, AccIn) -&gt; AccOut</code> — это функция, которая применяется к файлу, если имя файла соответствует регулярному выражению <code>RegExp</code>. Начальное значение аккумулятора <code>Acc</code> — это <code>Acc0</code>. Каждый раз, когда вызывается <code>Fun</code>, она должна вернуть новое значение аккумулятора, которое будет передано в Fun при следующем вызове этого <code>Fun</code>. Конечное значение аккумулятора — это значение, возвращаемое из функции <code>lib_find:files/5</code>.</p>
+<p>Мы можем передать в <code>lib_find:files/5</code> любую функцию, какую только захотим. Например, мы можем построить список файлов, используя следующую функцию, передавая ей в начале пустой список:</p>
+<pre><code>fun(File, Acc) -&gt; [File|Acc] end
+</code></pre><p>Точка входа модуля <code>lib_find:files(Dir, ShelRegExp, Flag)</code> обеспечивает упрощённый вызов для более общего использования программы. <code>ShelRegExp</code> здесь — это упрощённое регулярное выражение, которое легче записать, чем полную форму регулярного выражения.</p>
+<p>Пример такой короткой формы записи:</p>
+<pre><code>lib_find:files(Dir, &quot;*.erl&quot; , true)
+</code></pre><p>рекурсивно ищет все файлы Эрланга, начиная с <code>Dir</code>. Если бы последний аргумент был <code>false</code>, то программа искала бы файлы Эрланга только в директории <code>Dir</code>, но не спускалась в  поддиректории.</p>
+<p>Итак, код:</p>
+<p>Загрузить <a href="http://media.pragprog.com/titles/jaerlang/code/lib_find.erl">lib_find.erl</a></p>
+<pre><code>-module(lib_find).
+-export([files/3, files/5]).
+-import(lists, [reverse/1]).
+
+-include_lib(&quot;kernel/include/file.hrl&quot; ).
+
+files(Dir, Re, Flag) -&gt;
+    Re1 = regexp:sh_to_awk(Re),
+    reverse(files(Dir, Re1, Flag, fun(File, Acc) -&gt;[File|Acc] end, [])).
+
+files(Dir, Reg, Recursive, Fun, Acc) -&gt;
+    case file:list_dir(Dir) of
+        {ok, Files} -&gt; find_files(Files, Dir, Reg, Recursive, Fun, Acc);
+        {error, _} -&gt; Acc
+    end.
+
+find_files([File|T], Dir, Reg, Recursive, Fun, Acc0) -&gt;
+    FullName = filename:join([Dir,File]),
+    case file_type(FullName) of
+        regular -&gt;
+            case regexp:match(FullName, Reg) of
+                {match, _, _} -&gt;
+                    Acc = Fun(FullName, Acc0),
+                    find_files(T, Dir, Reg, Recursive, Fun, Acc);
+                _ -&gt;
+                    find_files(T, Dir, Reg, Recursive, Fun, Acc0)
+            end;
+        directory -&gt;
+            case Recursive of
+                true -&gt;
+                    Acc1 = files(FullName, Reg, Recursive, Fun, Acc0),
+                    find_files(T, Dir, Reg, Recursive, Fun, Acc1);
+                false -&gt;
+                    find_files(T, Dir, Reg, Recursive, Fun, Acc0)
+            end;
+        error -&gt;
+            find_files(T, Dir, Reg, Recursive, Fun, Acc0)
+        end;
+find_files([], _, _, _, _, A) -&gt;
+    A.
+
+file_type(File) -&gt;
+    case file:read_file_info(File) of
+        {ok, Facts} -&gt;
+            case Facts\#file_info.type of
+                regular -&gt; regular;
+                directory -&gt; directory;
+                _ -&gt; error
+            end;
+        _ -&gt;
+            error
+    end.
+</code></pre>
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/12" title="Previous Post: Глава 12. Интерфейсы с другими программами" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 12. Интерфейсы с другими программами</a></li>
+  <li class="next"><a href="http://erlangbook.tk/14" title="Next Post: Глава 14. Программирование с сокетами" class="navlinks-next">Глава 14. Программирование с сокетами <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

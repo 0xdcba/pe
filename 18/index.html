@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, события, обработчик, регистратор">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 18. Создание системы с использованием OTP</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 18. Создание системы с использованием OTP</h1>
+			<p>В этой главе мы будем создавать систему, выполняющую функции сервера в интернет-компании. Наша компания имеет два объекта продажи: простые числа и области ?услуга вычисления площади?. Покупатели могут купить простое число у нас или мы вычислим область геометрического объекта для них. Я думаю, что наша компания имеет огромный потенциал.</p>
+<p>Мы создадим два сервера: один будет генерировать простые числа, а второй вычислять площадь. Чтобы сделать это, мы будем использовать <code>gen_server</code>, о котором мы говорили в разделе 16.2, &quot;Начнем с <code>gen_server</code>&quot; на странице 301.</p>
+<p>Когда мы создаем систему, мы должны думать об ошибках, которые могут возникнуть. Хотя мы тщательно тестируем свое приложение, некоторые ошибки могут ускользнуть из поля зрения. Так что будем предполагать, что один из наших серверов может иметь фатальную ошибку, которая обрушит наш сервер. На самом деле, мы специально совершим ошибку, в одном из серверов, которая будет приводить к аварии.</p>
+<p>Для обнаружения факта обрушения сервера нам необходимо иметь соответствующий механизм, чтобы определить, что случилась авария и перезапустить сервер. Для этого мы используем идею <em>дерева
+супервизоров</em>. Мы создадим супервизора, который будет следить за нашими серверами и перезапускать их при авариях.</p>
+<p>Конечно же, если сервер потерпел аварию, мы захотим знать причины аварии, чтобы в дальнейшем устранить обнаруженные проблемы. Для протоколирования всех ошибок мы будем использовать регистратор ошибок OTP (OTP error logger). Мы покажем, как настраивать регистратор ошибок и как генерировать отчет об ошибках по журналу ошибок.</p>
+<p>При вычислении простых чисел, в частности больших простых чисел, наш процессор может перегреться. Для предотвращения перегрева нам потребуется включать мощный вентилятор. Чтобы сделать это, нам нужно подумать о системе оповещения - тревогах ?алармах?. Мы будем использовать подсистему обработки событий OTP для генерирования и обработки тревог ?алармов?.</p>
+<p>Все эти задачи (создание сервера, надзор за сервером, регистрация ошибок и определение тревог) являются типичными проблемами, которые должны быть решены в любой системе промышленного масштаба. В общем, даже если наша компания имеет довольно мутную перспективу, мы сможем использовать эту архитектуру в других системах. На самом деле, такая архитектура
+используется в ряде успешных коммерческих компаний.</p>
+<p>В итоге, когда все заработает, мы упакуем весь наш код в единое OTP приложение. Вкратце, это специализированная группировка всех частей задачи, которая позволяет системе OTP запускать, управлять и останавливать задачу.</p>
+<p>Порядок, в котором изложен материал несколько замысловат и имеет обратные зависимости между различными частями. Регистрация ошибок представляет собой особый случай управления событиями. Тревоги - это просто события, а сам регистратор ошибок - это контролируемый процесс,
+хотя процесс супервизора и может вызывать функции регистратора ошибок.</p>
+<p>Я попытаюсь все это упорядочить и представить части в некотором осмысленном порядке. Итак, мы будем делать следующее:</p>
+<ol>
+<li>Рассмотрим идеи использования типичного обработчика событий.</li>
+<li>Увидим как работает регистратор ошибок.</li>
+<li>Добавим управление тревогами.</li>
+<li>Напишем два сервера.</li>
+<li>Создадим дерево надзора и добавим в него наши серверы.</li>
+<li>Упакуем всё в единое приложение.</li>
+</ol>
+<h2 id="18-1-">18.1 Типичная обработка событий</h2>
+<p>Событие - это когда что-нибудь происходит, что-нибудь заслуживающее внимания программиста, который думает о том, кто и что должен делать в данном случае.</p>
+<p>Когда мы программируем и происходит что-нибудь заметное, мы просто отправляем сообщение о событии зарегистрированному процессу. Что-то вроде этого:</p>
+<pre><code>RegProcName ! {event, E}
+</code></pre><p><code>E</code> - это событие (любой Эрланг-элемент (term)). <code>RegProcName</code> - имя зарегистрированного процесса.</p>
+<p>Нам не нужно заботиться о том, что происходит с сообщением, когда мы его отправили. Мы просто выполнили работу и сообщили о том, что что-то случилось.</p>
+<p>Теперь переключим наше внимание на процесс приёма сообщений о событиях. Этот процесс называется &quot;обработчик событий&quot;. Простейший возможный обработчик событий - это &quot;ничего не делающий&quot; обработчик. Когда он принимает сообщение <code>{event, X}</code>, он ничего не делает с этим событием; просто отбрасывает его в сторону.</p>
+<p>Вот наша первая попытка создания программы типичного обработчика событий:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/event_handler.erl">event_handler.erl</a></p>
+<pre><code>-module(event_handler).
+-export([make/1, add_handler/2, event/2]).
+
+%% make a new event handler called Name
+%% the handler function is noOp -- so we do nothing with the event
+make(Name) -&gt;
+    register(Name, spawn(fun() -&gt; my_handler(fun no_op/1) end)).
+
+add_handler(Name, Fun) -&gt; Name ! {add, Fun}.
+
+%% generate an event
+event(Name, X) -&gt; Name ! {event, X}.
+
+my_handler(Fun) -&gt;
+    receive
+        {add, Fun1} -&gt;
+            my_handler(Fun1);
+        {event, Any} -&gt;
+            (catch Fun(Any)),
+            my_handler(Fun)
+    end.
+
+no_op(_) -&gt; void.
+</code></pre><p>API обработчика событий следующий:</p>
+<pre><code>event_handler:make(Name)
+</code></pre><p>Приготовить &quot;ничего не делающий&quot; обработчик называемый Name (атом). Это то место, куда будут направляться события.</p>
+<pre><code>event_handler:event(Name, X)
+</code></pre><p>Отправить событие <code>X</code> обработчику <code>Name</code>.</p>
+<pre><code>event_handler:add_handler(Name, Fun)
+</code></pre><p>Добавить обработчик <code>Fun</code> к обработчику событий <code>Name</code>. Когда происходит событие <code>X</code>, обработчик выполнит <code>Fun(X)</code>.</p>
+<p>Теперь создадим обработчик и сгенерируем ошибку:</p>
+<pre><code>1&gt; event_handler:make(errors).
+true
+2&gt; event_handler:event(errors, hi).
+{event,hi}
+</code></pre><p>Ничего особенного не произойдет, потому что мы не подключили модуль обратных вызовов к этому обработчику.</p>
+<p>Чтобы получить обработчик событий, который делает что-нибудь осмысленное, необходимо написать для него модуль обратных вызовов и подключить этот модуль к обработчику:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/motor_controller.erl">motor_controller.erl</a></p>
+<pre><code>-module(motor_controller).
+-export([add_event_handler/0]).
+
+add_event_handler() -&gt;
+    event_handler:add_handler(errors, fun controller/1).
+
+controller(too_hot) -&gt;
+    io:format(&quot;Turn off the motor\~n&quot; );
+
+controller(X) -&gt;
+    io:format(&quot;\~w ignored event: \~p\~n&quot; ,[?MODULE, X]).
+</code></pre><p>Скомпилируем этот код и подключим к обработчику:</p>
+<pre><code>3&gt; c(motor_controller).
+{ok,motor_controller}
+4&gt; motor_controller:add_event_handler().
+{add,\#Fun&lt;motor_controller.0.99476749&gt;}
+</code></pre><p>Теперь, когда события будут отправлены обработчику, они будут обработаны функцией <code>motor_controller:controller/1</code>:</p>
+<pre><code>5&gt; event_handler:event(errors, cool).
+motor_controller ignored event: cool
+{event,cool}
+6&gt; event_handler:event(errors, too_hot).
+Turn off the motor
+{event,too_hot}
+</code></pre><p>И в чём же смысл проделанной работы? Во первых, мы задали имя, на которое будут отправляться события. В данном случае, это зарегистрированный процесс <code>errors</code>. Затем, мы определили протокол отправки событий зарегистрированному процессу. Но мы ничего не сказали о том, что происходит с событиями, которые получает этот процесс. На самом деле, всё что случается будет обработано в функции <code>noOp(X)</code>. В конце мы подключим другой обработчик событий, но об этом позже.</p>
+<blockquote>
+<h4 id="-">Очень позднее связывание с &quot;изменением ваших мыслей&quot;</h4>
+<p>Предположим, что мы пишем функцию, которая скрывает конструкцию <code>event_handler:event</code> от программиста. Например, мы пишем следующее:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">lib_misc.erl</a></p>
+<pre><code>   too_hot() -&gt;
+       event_handler:event(errors, too_hot).
+</code></pre><p>В этом случае мы говорим программисту вызывать <code>lib_misc:too_hot()</code> в своем коде, когда дела пойдут плохо. В большинстве языков программирования вызов функции too_hot был бы статически или динамически прилинкован в код программы. Так как вызов прилинкован, значит он выполняет фиксированную работу зависящую от кода. Если позднее изменится наше понимание и мы решим изменить что-нибудь, то это будет не простой путь изменения нашей системы.</p>
+<p>Подход Эрланга к обработке событий абсолютно другой. Он позволяет отделить генерирацию событий от обработки событий. Мы можем изменить обработку в любое время, просто передав новую функцию обработки в обработчик событий. Ничего не линкуется статически, и каждый обработчик может быть изменен тогда, когда вам это потребуется.</p>
+<p>Используя такой механизм, мы можем построить систему <em>меняющуюся со временем</em> и не требующую остановки для замены кода.</p>
+<p><em>Примечание:</em> Это не &quot;позднее связывание&quot; - это &quot;ОЧЕНЬ позднее связывание, дающее возможность думать так или иначе&quot;.</p>
+</blockquote>
+<p>Возможно, вы немного запутались. Почему мы говорим об обработчиках событий? Ключевой момент повествования в том, что обработчик событий предоставляет нам инфраструктуру, в которую мы можем внедрять свои обработчики.</p>
+<p>Инфраструктура регистратора ошибок строится из шаблона обработчика событий. Мы можем устанавливать различные обработчики в регистраторе ошибок для достижения различных целей.</p>
+<h2 id="18-2-">18.2 Регистратор ошибок</h2>
+<p>Система OTP строится на настраиваемых регистраторах ошибок. Регистратор ошибок можно рассматривать с трех точек зрения. С точки зрения <em>программиста</em> - это вызовы функций позволяющие вести журнал ошибок. Точка зрения <em>конфигурации</em> - это то, как регистратор ошибок сохраняет данные. Точка зрения <em>отчетов</em> - это анализ ошибок после того как они случились. Мы рассмотрим каждую из точек зрения.</p>
+<h3 id="-">Журналирование/Протоколирование ошибок</h3>
+<p>Что касается программиста, API регистратора ошибок достаточно прост. Вот он:</p>
+<pre><code>@spec error_logger:error_msg(String) -&gt; ok
+</code></pre><p>Отправить сообщение об ошибке регистратору ошибок.</p>
+<pre><code>1&gt; error_logger:error_msg(&quot;An error has occurred\\n&quot;).
+=ERROR REPORT==== 28-Mar-2007::10:46:28 ===
+An error has occurred
+ok
+</code></pre><hr>
+<pre><code>@spec error_logger:error_msg(Format, Data) -&gt; ok
+</code></pre><p>Отправить сообщение об ошибке регистратору ошибок. Аргументы такие же как и для <code>io:format(Format, Data)</code>.</p>
+<pre><code>2&gt; error_logger:error_msg(&quot;\~s, an error has occurred\\n&quot;, [&quot;Joe&quot;]).
+=ERROR REPORT==== 28-Mar-2007::10:47:09 ===
+Joe, an error has occurred
+ok
+</code></pre><hr>
+<pre><code>@spec error_logger:error_report(Report) -&gt; ok
+</code></pre><p>Отправить стандартный отчет об ошибке регистратору ошибок.</p>
+<ul>
+<li><code>@type Report = [{Tag, Data} | term()] | string() | term()]</code></li>
+<li><code>@type Tag = term()</code></li>
+<li><p><code>@type Data = term()</code></p>
+<pre><code>  error_logger:error_report([{tag1,data1},a_term,{tag2,data}]).
+  =ERROR REPORT==== 28-Mar-2007::10:51:51 ===
+  tag1: data1
+  a_term
+  tag2: data
+</code></pre></li>
+</ul>
+<p>Это только небольшая часть доступного API. Обсуждение деталей не очень интересно. В наших программах мы будем использовать только <code>error_msg</code>. Полное описание можно посмотреть на страницах руководства по <code>error_logger</code>.</p>
+<h3 id="-">Настройка регистратора ошибок</h3>
+<p>Существует много способов настроить регистратор ошибок. Мы можем видеть все ошибки в окне оболочки Эрланга (это режим по-умолчанию, специально настраивать не требуется). Мы можем записывать все ошибки попадающие в окно оболочки в один отформатированный файл. И, наконец, мы можем создать кольцевой ?циклический? журнал ошибок. Можете думать о колцевом журнале как о большом кольцевом буфере, который содержит сообщения, выдаваемые регистратором ошибок. Новые сообщения записываются в конец журнала, а когда журнал полон, то записи из начала журнала удаляются.</p>
+<p>Кольцевые журналы используются очень часто. Вам решать как много файлов журналов использовать и насколько они будут большими, а система сама позаботится об удалении старых и создании новых файлов в кольцевом буфере. Вы можете задать подходящий размер файла, чтобы сохранить в нем записи за несколько дней, этого обычно достаточно в большинстве случаев.</p>
+<h3 id="-">Стандарные регистраторы ошибок</h3>
+<p>Когда мы запускаем Эрланг, мы можем использовать аргумент boot:</p>
+<pre><code>$ erl -boot start_clean
+</code></pre><p>Такой запуск обеспечит окружение для разработки программ. Будет поддерживаться только простая регистрация ошибок. (Команда <code>erl</code> без аргумена <code>boot</code> эквивалентна команде <code>erl -boot start_clean</code>)</p>
+<pre><code>$ erl -boot start_sasl
+</code></pre><p>Такой запуск обеспечит окружение для запуска системы готовой к эксплуатации. Библиотеки поддержки системной архитектуры (SASL - System Architecture Support Libraries) позаботится о регистрации ошибок, о перегрузках системы и так далее.</p>
+<p>Настройку журналов лучше всего делать из файлов настроек, потому что вряд ли кто-нибудь помнит все аргументы регистратора. Далее мы рассмотрим как работает система по-умолчанию и увидим четыре конфигурации, которые меняют поведение регистратора.</p>
+<h3 id="sasl-">SASL без настройки</h3>
+<p>Вот что происходит, когда мы запускаем SASL без файла настроек:</p>
+<pre><code>$ erl -boot start_sasl
+Erlang (BEAM) emulator version 5.5.3 [async-threads:0] ...
+=PROGRESS REPORT==== 27-Mar-2007::11:49:12 ===
+supervisor: {local,sasl_safe_sup}
+started: [{pid,&lt;0.32.0&gt;},
+            {name,alarm_handler},
+            {mfa,{alarm_handler,start_link,[]}},
+            {restart_type,permanent},
+            {shutdown,2000},
+            {child_type,worker}]
+
+... many lines removed ...
+
+Eshell V5.5.3 (abort with \^G)
+</code></pre><p>Сейчас мы вызовем одну из конструкций error_logger для отчета об ошибке:</p>
+<pre><code>1&gt; error_logger:error_msg(&quot;This is an error\\n&quot;).
+=ERROR REPORT==== 27-Mar-2007::11:53:08 ===
+This is an error
+ok
+</code></pre><p>Заметим, что отчет об ошибке отобразился в оболочке Эрланга. Вывод отчетов об ошибках зависит от настроек регистратора ошибок.</p>
+<h3 id="-">Управление регистратором</h3>
+<p>Регистратор ошибок предоставляет несколько типов отчетов:</p>
+<p><strong>Отчеты супервизора</strong></p>
+<p>Отчеты о том, что OTP супервизор запускает или останавливает подчинённые процессы (мы поговорим о супервизорах а разделе 18.5 &quot;Дерево надзора&quot;, на странице 351).</p>
+<p><strong>Отчеты о выполнении</strong></p>
+<p>Отчеты о запуске или остановке супрвизора.</p>
+<p><strong>Отчеты об авариях</strong></p>
+<p>Отчеты об остановке выполнения с сообщением о причине отказа помимо <code>normal</code> или <code>shutdown</code>.</p>
+<p>Эти три типа отчетов обрабатываются автоматически и не требуют вмешательства программиста.</p>
+<p>Мы можем дополнительно вызвать конкретную конструкцию модуля <code>error_handler</code>, чтобы обработать все три типа отчетов. Это позволит нам использовать соощения об ошибках, предупреждения и сообщения информационного характера. Три этих термина ничего не означают;
+воспринимайте их как теги, позволяющие программисту различать природу элементов в журнале ошибок.</p>
+<p>Позже, когда журнал ошибок будет проанализирован, эти теги помогут нам решить какие из элементов журнала исследовать. Когда мы настраиваем регистратор ошибок, мы можем указать, что требуется сохранять только ошибки, а все остальные элементы игнорировать. Теперь давайте напишем файл настроек <code>elog1.config</code> для настройки регистратора ошибок:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/elog1.config">elog1.config</a></p>
+<pre><code>%% no tty
+[{sasl, [
+            {sasl_error_logger, false}
+        ]}].
+</code></pre><p>Если мы запустим систему с этим файлом настроек, то будем получать только сообщения об ошибках, мы не получим сообщений о ходе выполнения и прочих. Все эти сообщения будут выводиться только в окно оболочки Эрланга.</p>
+<pre><code>$ erl -boot start_sasl -config elog1
+1&gt; error_logger:error_msg(&quot;This is an error\\n&quot;).
+=ERROR REPORT==== 27-Mar-2007::11:53:08 ===
+This is an error
+ok
+</code></pre><h3 id="-shell-">Текстовый файл и оболочка (shell)</h3>
+<p>Следующий файл настроек выдаёт список ошибок в окно оболочки Эрланга и дублирует все сообщения из оболочки в файл:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/elog2.config">elog2.config</a></p>
+<pre><code>%% single text file - minimal tty
+[{sasl, [
+            %% All reports go to this file
+            {sasl_error_logger, {file, &quot;/home/joe/error_logs/THELOG&quot; }}
+        ]}].
+</code></pre><p>Для проверки мы запустим Эрланг, сгенерируем сообщение об ошибке и посмотрим результат в файле:</p>
+<pre><code>$ erl -boot start_sasl -config elog2
+1&gt; error_logger:error_msg(&quot;This is an error\\n&quot;).
+=ERROR REPORT==== 27-Mar-2007::11:53:08 ===
+This is an error ok
+</code></pre><p>Если мы посмотрим файл /<code>home/joe/error_logs/THELOG</code>, в начале файла мы найдем следующие строки:</p>
+<pre><code>=PROGRESS REPORT==== 28-Mar-2007::11:30:55 ===
+supervisor: {local,sasl_safe_sup}
+started: [{pid,&lt;0.34.0&gt;},
+            {name,alarm_handler},
+            {mfa,{alarm_handler,start_link,[]}},
+            {restart_type,permanent},
+            {shutdown,2000},
+            {child_type,worker}]
+...
+</code></pre><h3 id="-">Кольцевой журнал и оболочка</h3>
+<p>Эта конфигурация даст нам возможность выводить все ошбики в оболочку Эрланга плюс дублирование всего вывода оболочки в кольцевой журнальный файл. Такой вариант наиболее часто используется на практике.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/elog3.config">elog3.config</a></p>
+<pre><code>%% rotating log and minimal tty
+[{sasl, [
+            {sasl_error_logger, false},
+            %% задать параметры кольцевого журнала
+            %% директория с файлом журнала
+            {error_logger_mf_dir,&quot;/home/joe/error_logs&quot; },
+            %% # кол-во байт выделенное для журнала
+            {error_logger_mf_maxbytes,10485760}, % 10 MB
+            %% максимальное кол-во файлов-журналов
+            {error_logger_mf_maxfiles, 10}
+        ]}].
+
+$erl -boot start_sasl -config elog3
+1&gt; error_logger:error_msg(&quot;This is an error\\n&quot;).
+=ERROR REPORT==== 28-Mar-2007::11:36:19 ===
+This is an error
+false
+</code></pre><p>При запуске системы все ошибки будут направляться в файл кольцевого журнала. Позже в этой главе мы рассмотрим как извлекать эти ошибки из файла-журнала.</p>
+<h3 id="-">Продуктивная среда (ПРОДАКШЕН)</h3>
+<p>В продуктивной среде нам, на самом деле, интересны только отчеты об ошибках, а не о процессе выполнения или какая-либо информация, поэтому заставим регистратор отчитываться только об ошибках. Без этих настроек систему будут перегружать информационные отчеты и отчеты о процессе исполнения.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/elog4.config">elog4.config</a></p>
+<pre><code>%% rotating log and errors
+[{sasl, [
+            %% minimise shell error logging
+            {sasl_error_logger, false},
+            %% only report errors
+            {errlog_type, error},
+            %% define the parameters of the rotating log
+            %% the log file directory
+            {error_logger_mf_dir,&quot;/home/joe/error_logs&quot; },
+            %% \# bytes per logfile
+            {error_logger_mf_maxbytes,10485760}, % 10 MB
+            %% maximum number of
+            {error_logger_mf_maxfiles, 10}
+        ]}].
+</code></pre><p>В результате запуска получим нечто похожее на предыдущий пример. С той лишь разницей, что регистрироваться будут только ошибки.</p>
+<h3 id="-">Анализируем ошибки</h3>
+<p>Чтение журнала ошибок входит в обязанности модуля <code>rb</code>. Этот модуль имеет чрезвычайно простой интерфейс.</p>
+<pre><code>1&gt; rb:help().
+
+Report Browser Tool - usage
+===========================
+rb:start() - start the rb_server with default options
+rb:start(Options) - where Options is a list of:
+                    {start_log, FileName}
+                        - default: standard_io
+                    {max, MaxNoOfReports}
+                        - MaxNoOfReports should be an integer or &#39;all&#39;
+                        - default: all
+...
+... many lines omitted ...
+...
+</code></pre><p>Запустим браузер отчетов и скажем ему сколько записей из журнала читать (в данном случае последние двадцать):</p>
+<pre><code>2&gt; rb:start([{max,20}]).
+rb: reading report...done.
+3&gt; rb:list().
+No     Type         Process     Date         Time
+==     ====         =======     ====         ====
+11     progress     &lt;0.29.0&gt;     2007-03-28     11:34:31
+10     progress     &lt;0.29.0&gt;     2007-03-28     11:34:31
+9     progress     &lt;0.29.0&gt;     2007-03-28     11:34:31
+8     progress     &lt;0.29.0&gt;     2007-03-28     11:34:31
+7     progress     &lt;0.22.0&gt;     2007-03-28     11:34:31
+6     progress     &lt;0.29.0&gt;     2007-03-28     11:35:53
+5     progress     &lt;0.29.0&gt;     2007-03-28     11:35:53
+4     progress     &lt;0.29.0&gt;     2007-03-28     11:35:53
+3     progress     &lt;0.29.0&gt;     2007-03-28     11:35:53
+2     progress     &lt;0.22.0&gt;     2007-03-28     11:35:53
+1     error         &lt;0.23.0&gt;     2007-03-28     11:36:19
+ok
+&gt; rb:show(1).
+
+ERROR REPORT &lt;0.40.0&gt;                     2007-03-28 11:36:19
+===========================================================
+
+This is an error
+ok
+</code></pre><p>Для того чтобы найти конкретную ошибку мы можем использовать такую команду как rb:grep(RegExp), при её использовании найдется то, что описано в регулярном выражении RegExp. Я не хочу углубляться в то, как анализировать журналы ошибок. Лучше потратьте время и поинтересуйтесь модулем rb и все увидите сами. Замечу, что на самом деле вам никогда не потребуется удалять журналы ошибок, точный механизм кольцевых журналов в конце концов сам удалит старые записи.</p>
+<p>Если вам требуется оставить все сообщения об ошибках, вы можете задать интервалы и удалять информацию по мере необходимости.</p>
+<h2 id="18-3-">18.3 Управление тревогами</h2>
+<p>Когда мы пишем наше приложение, нам требуется только одна тревога - будем реагировать только тогда, когда начнет перегреваться процессор, потому что мы вычисляем гигантские простые числа (помните, мы создали компанию по продаже простых чисел). Вот теперь-то мы и будем использовать настоящий OTP-шный обработчик тревог (и не простой как в начале главы).</p>
+<p>Обработчик тревог это модуль обратных вызовов OTP для поведения <code>gen_event</code>. Вот его код:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/my_alarm_handler.erl">my_alarm_handler.erl</a></p>
+<pre><code>-module(my_alarm_handler).
+-behaviour(gen_event).
+
+%% gen_event callbacks
+-export([init/1, handle_event/2, handle_call/2,
+        handle_info/2, terminate/2]).
+
+%% init(Args) must return {ok, State}
+init(Args) -&gt;
+    io:format(&quot;*** my_alarm_handler init:\~p\~n&quot; ,[Args]),
+    {ok, 0}.
+
+handle_event({set_alarm, tooHot}, N) -&gt;
+    error_logger:error_msg(&quot;*** Tell the Engineer to turn on the fan~n&quot;),
+    {ok, N+1};
+handle_event({clear_alarm, tooHot}, N) -&gt;
+    error_logger:error_msg(&quot;*** Danger over. Turn off the fan~n&quot;),
+    {ok, N};
+handle_event(Event, N) -&gt;
+    io:format(&quot;*** unmatched event:~p~n&quot; ,[Event]),
+    {ok, N}.
+
+handle_call(_Request, N) -&gt; Reply = N, {ok, N, N}.
+
+handle_info(_Info, N) -&gt; {ok, N}.
+
+terminate(_Reason, _N) -&gt; ok.
+</code></pre><p>Этот код очень похож на код обратных вызовов <code>gen_server</code>, который мы видели раньше в разделе 16.3, &quot;<em>Что же происходит когда мы вызываем сервер</em>?&quot;, на странице 306. Интересующей нас конструкцией является <code>handle_event(Event, State)</code>. Она возвращает <code>{ok, NewState}</code>. <code>Event</code> - это кортеж имеющий форму <code>{EventType, EventArg}</code>, где <code>EventType</code> это атом <code>set_event</code> или <code>clear_event</code>, а <code>EventArg</code> - это пользовательские аргументы. Чуть позже мы рассмотрим как генерируются такие события.</p>
+<p>А теперь позабавимся. Мы запустим систему, сгенерируем тревогу, установим обработчик тревог, сгенерируем новую тревогу, и так далее:</p>
+<pre><code>$ erl -boot start_sasl -config elog3
+1&gt; alarm_handler:set_alarm(tooHot).
+ok
+=INFO REPORT==== 28-Mar-2007::14:20:06 ===
+alarm_handler: {set,tooHot}
+
+2&gt; gen_event:swap_handler(alarm_handler,
+                        {alarm_handler, swap},
+                        {my_alarm_handler, xyz}).
+
+*** my_alarm_handler init:{xyz,{alarm_handler,[tooHot]}}
+3&gt; alarm_handler:set_alarm(tooHot).
+ok
+=ERROR REPORT==== 28-Mar-2007::14:22:19 ===
+*** Tell the Engineer to turn on the fan
+4&gt; alarm_handler:clear_alarm(tooHot).
+ok
+=ERROR REPORT==== 28-Mar-2007::14:22:39 ===
+*** Danger over. Turn off the fan
+</code></pre><h3 id="-">Что же здесть присходит?</h3>
+<ol>
+<li><p>Мы запустили Эрланг с <code>-boot start_sasl</code>. Когда мы сделали это, мы получили стандартный обработчик тревог. Когда мы устанавливаем или очищаем тревогу, то ничего не происходит. Это простой &quot;ничего не делающий&quot; обработчик событий, мы такие рассматривали раньше.</p>
+</li>
+<li><p>Когда мы установили тревогу (строка 1), мы просто получили информационный отчет. Здесь нет специальной обработки тревог.</p>
+</li>
+<li><p>Мы установили свой обработчик тревог (строка 2). Аргумент в <code>my_alarm_handler</code> (<code>xyz</code>) не имеет особого значения; синтаксис требует какое-нибудь значение, но поскольку нам не требуются значения, мы просто используем атом xyz, мы сможем увидеть этот аргумент при выводе на консоль.<br>Строка ** <code>my_alarm_handler_init</code>: ... напечатана из нашего модуля обратных вызовов.</p>
+</li>
+<li><p>Мы установили и очистили тревогу tooHot (строки 3 и 4). Это отработал наш обработчик тревог. Мы можем проверить, прочитав вывод на консоли.</p>
+</li>
+</ol>
+<h3 id="-">Чтение журнала</h3>
+<p>Давайте вернёмся обратно к регистратору ошибок и посмотрим, что там происходит:</p>
+<pre><code>1&gt; rb:start([{max,20}]).
+rb: reading report...done.
+2&gt; rb:list().
+No             Type    Process     Date         Time
+==             ====     =======     ====         ====
+...
+
+3     info_report     &lt;0.29.0&gt;     2007-03-28     14:20:06
+2           error     &lt;0.29.0&gt;     2007-03-28     14:22:19
+1           error     &lt;0.29.0&gt;     2007-03-28 14:22:39
+3&gt; rb:show(1).
+
+ERROR REPORT &lt;0.33.0&gt; 2007-03-28 14:22:39
+=====================================================
+*** Danger over. Turn off the fan
+ok
+4&gt; rb:show(2).
+
+ERROR REPORT &lt;0.33.0&gt; 2007-03-28 14:22:19
+=====================================================
+*** Tell the Engineer to turn on the fan
+</code></pre><p>Итак, здесь мы видим как работает механизм регистратора ошибок.</p>
+<p>На практике мы должны были бы убедиться, что журнал ошибок достаточно велик для хранения данных за несколько дней или даже недель. Каждые несколько дней (или недель) мы бы проверяли журнал на предмет ошибок.</p>
+<p>Примечание: Модуль rb содержит функции для выбора ошибок указанного типа и извлечения этих ошибок в файл. В результате процесс анализа ошибок может быть полностью автоматизирован.</p>
+<h2 id="18-4-">18.4 Серверные приложения</h2>
+<p>Наше приложение состоит из двух серверов: сервер простых чисел и сервер рассчёта площади. Рассмотрим сервер простых чисел. Он написан с использованием поведения gen_server (см. раздел 16.2 &quot;<em>Начинаем с gen_server</em>&quot; на стр. 301). Замечу, что он включает в себя обработку тревог которую мы разработали в предыдущем разделе.</p>
+<h3 id="-">Сервер простых чисел</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/prime_server.erl">prime_server.erl</a></p>
+<pre><code>-module(prime_server).
+-behaviour(gen_server).
+
+-export([new_prime/1, start_link/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+        terminate/2, code_change/3]).
+
+start_link() -&gt;
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+new_prime(N) -&gt;
+    %% 20000 is a timeout (ms)
+    gen_server:call(?MODULE, {prime, N}, 20000).
+
+init([]) -&gt;
+    %% Note we must set trap_exit = true if we
+    %% want terminate/2 to be called when the application
+    %% is stopped
+    process_flag(trap_exit, true),
+    io:format(&quot;\~p starting\~n&quot; ,[?MODULE]),
+    {ok, 0}.
+
+handle_call({prime, K}, _From, N) -&gt;
+    {reply, make_new_prime(K), N+1}.
+
+handle_cast(_Msg, N) -&gt; {noreply, N}.
+
+handle_info(_Info, N) -&gt; {noreply, N}.
+
+terminate(_Reason, _N) -&gt;
+    io:format(&quot;\~p stopping\~n&quot; ,[?MODULE]),
+    ok.
+
+code_change(_OldVsn, N, _Extra) -&gt; {ok, N}.
+
+make_new_prime(K) -&gt;
+    if
+        K &gt; 100 -&gt;
+            alarm_handler:set_alarm(tooHot),
+            N = lib_primes:make_prime(K),
+            alarm_handler:clear_alarm(tooHot),
+            N;
+        true -&gt;
+            lib_primes:make_prime(K)
+    end.
+</code></pre><h3 id="-">Сервер площади</h3>
+<p>Теперь рассмотрим сервер площади. Он так же построен на поведении <code>gen_server</code>. Заметьте, написание сервера очень быстрый процесс. Когда я писал этот пример, я просто скопировал код из сервера простых чисел и вставил его в новый сервер. Все заняло несколько минут.</p>
+<p>Сервер площади не является идеальной программой и содержит преднамеренную ошибку (сможете ее найти?). Мой не очень коварный план - это заставить сервер рухнуть, чтобы быть  перестрахованным супервизором. А потом получить отчёт обо всех ошибках в журнале ошибок.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/prime_server.erl">prime_server.erl</a></p>
+<pre><code>-module(area_server).
+-behaviour(gen_server).
+
+-export([area/1, start_link/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+        terminate/2, code_change/3]).
+
+start_link() -&gt;
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+area(Thing) -&gt;
+    gen_server:call(?MODULE, {area, Thing}).
+
+init([]) -&gt;
+    %% Note we must set trap_exit = true if we
+    %% want terminate/2 to be called when the application
+    %% is stopped
+
+process_flag(trap_exit, true),
+io:format(&quot;~p starting~n&quot; ,[?MODULE]),
+{ok, 0}.
+
+handle_call({area, Thing}, _From, N) -&gt; 
+    {reply, compute_area(Thing), N+1}.
+
+handle_cast(_Msg, N) -&gt; {noreply, N}.
+
+handle_info(_Info, N) -&gt; {noreply, N}.
+
+terminate(_Reason, _N) -&gt;
+    io:format(&quot;~p stopping~n&quot; ,[?MODULE]),
+    ok.
+
+code_change(_OldVsn, N, _Extra) -&gt; {ok, N}.
+
+compute_area({square, X}) -&gt; X*X;
+
+compute_area({rectonge, X, Y}) -&gt; X*Y.
+</code></pre><p>надзор <code>one_for_one</code> Если один процесс рухнет, он будет перезапущен</p>
+<p>надзор <code>all_for_one</code> Если один процесс рухнет, все процессы будут прерваны и перезапущены</p>
+<p><img src="https://raw2.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/18/Img-18.1.png" alt="image"></p>
+<p>18.1 Два вида дерева надзора</p>
+<h2 id="18-5-">18.5 Дерево надзора</h2>
+<p>Дерево надзора - это дерево процессов. Самые верхние процессы (супервизоры) в дереве наблюдают за нижними (рабочими) процессами в дереве и перезапускют нижние процессы, если те аварийно завершаются. Два вида дерева надзора вы можете увидеть на рисунке 18.1.</p>
+<p><em>One-for-one</em> дерево надзора</p>
+<p>В надзоре one-for-one, если один процесс рухнул, то супервизор рестартует только этот процесс.</p>
+<p><em>All-for-one</em> дерево надзора</p>
+<p>В надзоре all-for-one, если любой из процессов рухнет, то все поднадзорные процессы будут уничтожены (вызовом функции terminate/2 в соответстующем модуле обратных вызовов). Затем все рабочие процессы будут рестартованы.</p>
+<p>Супервизоры создаются с использованием OTP поведения <em>supervisor</em>. Это поведение описывается в специальном модуле обратных вызовов, который содержит стратегию надзора и правила запуска отдельных рабочих процессов в дереве надзора. Дерево надзора определяется функцией следующего вида:</p>
+<pre><code>init(...) -&gt;
+    {ok, {RestartStrategy, MaxRestarts, Time},
+        [Worker1, Worker2, ...]}.
+</code></pre><p>Здесь RestartStrategy это один из атомов one_for_one или all_for_one. MaxRestarts и Time указывают на &quot;частоту перезапуска&quot;. Если супервизор перезапускает процессы большее число раз, чем указано в MaxRestarts за Time секунд, то работа супервизора будет прервана. Это делается для того, чтобы остановить бесконечный цикл перезапуска процессов, если они содержат ошибки и останавливаются из-за них.</p>
+<p><code>Worker1</code>, <code>Worker2</code> и т.д. это кортеж описывающий как запускать каждый из рабочих процессов. Мы увидим, как это выглядит уже скоро.</p>
+<p>Теперь давайте вернемся к нашей компании и создадим дерево надзора.</p>
+<p>Для начала, думаю, нам надо выбрать имя для нашей компании. Пусть будет <code>sellaprime</code>. Задача супервизора sellaprime - это конечно же держать всегда запущенными сервер простых чисел и сервер площади. Для этого напишем уже другой модуль обратных вызовов, теперь для  <code>gen_supervisor</code>.</p>
+<p>Вот этот модуль:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/sellaprime_supervisor.erl">sellaprime_supervisor.erl</a></p>
+<pre><code>-module(sellaprime_supervisor).
+-behaviour(supervisor). % see erl -man supervisor
+
+-export([start/0, start_in_shell_for_testing/0, start_link/1,
+        init/1]).
+
+start() -&gt;
+    spawn(fun() -&gt;
+        supervisor:start_link({local,?MODULE}, ?MODULE, _Arg = [])
+    end).
+
+start_in_shell_for_testing() -&gt;
+    {ok, Pid} = supervisor:start_link({local,?MODULE}, 
+        ?MODULE, _Arg =    []),
+    unlink(Pid).
+
+start_link(Args) -&gt;
+    supervisor:start_link({local,?MODULE}, ?MODULE, Args).
+
+init([]) -&gt;
+    %% Install my personal error handler
+    gen_event:swap_handler(alarm_handler,
+            {alarm_handler, swap},
+            {my_alarm_handler, xyz}),
+
+    {ok, {{one_for_one, 3, 10},
+            [{tag1,
+                 {area_server, start_link, []},
+                 permanent,
+                 10000,
+                 worker,
+                 [area_server]},
+            {tag2,
+                {prime_server, start_link, []},
+                permanent,
+                10000,
+                worker,
+                [prime_server]}
+            ]}}.
+</code></pre><p>Самая важная часть - это структура данных возвращаемая функцией <code>init/1</code>:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/sellaprime_supervisor.erl">sellaprime_supervisor.erl</a></p>
+<pre><code>{ok, {{one_for_one, 3, 10},
+        [{tag1,
+            {area_server, start_link, []},
+            permanent,
+            10000,
+            worker,
+            [area_server]},
+            {tag2,
+            {prime_server, start_link, []},
+            permanent,
+            10000,
+            worker,
+            [prime_server]}
+        ]}}.
+</code></pre><p>Эта структура данных определяет стратегию надзора. Мы говорили о стратегии надзора и частоте перезапуска выше. Сейчас осталось дать определение для сервера областей и сервера простых чисел.</p>
+<p>Определение для Worker процессов имеет следующий вид:</p>
+<pre><code>{Tag, {Mod, Func, ArgList},
+        Restart,
+        Shutdown,
+        Type,
+        [Mod1]}
+</code></pre><p>Что же обозначают все эти аргументы?</p>
+<pre><code>Tag
+</code></pre><p>Атом, который будет использоваться для ссылки на рабочий процесс в дальнейшем (если потребуется).</p>
+<pre><code>{Mod, Func, ArgList}
+</code></pre><p>Определение функции, которую супервизор будет использовать для запуска рабочего процесса. Оно используется как аргумент при вызове <code>apply(Mod, Fun, ArgList)</code>.</p>
+<pre><code>Restart = permanent | transient | temporary
+</code></pre><p><code>permanent</code> - процесс будет перезапускаться всегда. <code>transient</code> - процесс будет перезапущен только, если получено ненормальное значение при выходе. <code>temporary</code> - процесс запускается только один раз и не перезапускается.</p>
+<pre><code>Shutdown
+</code></pre><p>Время остановки. Это максимально разрешенное время для остановки рабочего процесса. Если время остановки процесса будет превышено, то процесс просто будет убит. (Возможны и другие значения - см. руководство по Супервизору)</p>
+<pre><code>Type = worker | supervisor
+</code></pre><p>Тип надзираемого процесса. Мы можем сконструировать дерево надзора над супервизорами, добавляя процесс супервизора вместо рабочего процесса.</p>
+<pre><code>[Mod1]
+</code></pre><p>Это имя модуля обратных вызовов, если дочерний процесс имеет поведение <code>supervisor</code> или <code>gen_server</code> (Возможны и другие значения - см. руководство по Супервизору)</p>
+<h2 id="18-6-">18.6 Запуск системы</h2>
+<p>Теперь мы готовы первый раз запустить нашу компанию. Мы вернулись. Кто хочет купить первое простое число?</p>
+<p>Давайте запустим систему:</p>
+<pre><code>$ erl -boot start_sasl -config elog3
+1&gt; sellaprime_supervisor:start_in_shell_for_testing().
+*** my_alarm_handler init:{xyz,{alarm_handler,[]}}
+area_server starting
+prime_server starting
+</code></pre><p>Теперь сделаем правильный запрос:</p>
+<pre><code>2&gt; area_server:area({square,10}).
+100
+</code></pre><p>Сейчас сделаем неправильный запрос:</p>
+<pre><code>3&gt; area_server:area({rectangle,10,20}).
+area_server stopping
+=ERROR REPORT==== 28-Mar-2007::15:15:54 ===
+** Generic server area_server terminating
+** Last message in was {area,{rectangle,10,20}}
+</code></pre><blockquote>
+<h3 id="-">Действительно ли работает стратегия надзора?</h3>
+<p>Эрланг был разработан для программирования отказоустойчивых систем. Первоначальная разработка была сделана в Лаборатории Вычислительной Техники Шведской компании Эрикссон. С тех пор группа OTP вела разработку с помощью десятков сотрудников компании. Используя <code>gen_server</code>, <code>gen_supervisor</code> и другие поведения Эрланга строились системы с надежностью 99.9999999% (тут девять девяток). При правильном использовании, механизм обработки ошибок может помочь сделать вашу программу работающей вечно (ну, или почти вечно). Регистратор ошибок, описанный здесь, работает уже в течение нескольких лет в реальных, живых продуктах.</p>
+</blockquote>
+<pre><code>** When Server state == 1
+** Reason for termination ==
+** {function_clause,[{area_server,compute_area,[{rectangle,10,20}]},
+                    {area_server,handle_call,3},
+                    {gen_server,handle_msg,6},
+                    {proc_lib,init_p,5}]}
+area_server starting
+** exited: {{function_clause,
+            [{area_server,compute_area,[{rectangle,10,20}]},
+            {area_server,handle_call,3},
+            {gen_server,handle_msg,6},
+            {proc_lib,init_p,5}]},
+            {gen_server,call,
+            [area_server,{area,{rectangle,10,20}}]}} **
+</code></pre><p>Упс - что же тут случилось? Сервер площади рухнул; мы умышленно допустили в коде ошибку. Авария была обнаружена супервизором и сервер был перезапущен. Все это запротоколировал регистратор ошибок.</p>
+<p>После аварии, все вернулось к нормальному состоянию, как и должно было. Давайте сейчас сделаем правильный запрос:</p>
+<pre><code>4&gt; area_server:area({square,25}).
+625
+</code></pre><p>У нас все опять работает. Теперь давайте сгенерируем маленькое простое число:</p>
+<pre><code>5&gt; prime_server:new_prime(20).
+Generating a 20 digit prime ........
+37864328602551726491
+</code></pre><p>А теперь сгенерируем большое простое число:</p>
+<pre><code>6&gt; prime_server:new_prime(120).
+Generating a 120 digit prime
+=ERROR REPORT==== 28-Mar-2007::15:22:17 ===
+*** Tell the Engineer to turn on the fan
+........................................
+
+=ERROR REPORT==== 28-Mar-2007::15:22:20 ===
+*** Danger over. Turn off the fan
+765525474077993399589034417231006593110007130279318737419683
+288059079481951097205184294443332300308877493399942800723107
+</code></pre><p>Теперь у нас работоспособная система. Если на сервере случится авария, то он автоматически будет перезапущен, а регистратор ошибок проинформирует нас об этом.</p>
+<p>Сейчас давайте рассмотрим журнал ошибок:</p>
+<pre><code>1&gt; rb:start([{max,20}]).
+rb: reading report...done.
+rb: reading report...done.
+{ok,&lt;0.53.0&gt;}
+2&gt; rb:list().
+No     Type                 Process  Date          Time
+==     ====                 =======  ====          ====
+20     progress             &lt;0.29.0&gt; 2007-03-28 15:05:15
+19     progress             &lt;0.22.0&gt; 2007-03-28 15:05:15
+18     progress             &lt;0.23.0&gt; 2007-03-28 15:05:21
+17     supervisor_report     &lt;0.23.0&gt; 2007-03-28 15:05:21
+16     error                 &lt;0.23.0&gt; 2007-03-28 15:07:07
+15     error                 &lt;0.23.0&gt; 2007-03-28 15:07:23
+14     error                 &lt;0.23.0&gt; 2007-03-28 15:07:41
+13     progress             &lt;0.29.0&gt; 2007-03-28 15:15:07
+12     progress             &lt;0.29.0&gt; 2007-03-28 15:15:07
+11     progress             &lt;0.29.0&gt; 2007-03-28 15:15:07
+10     progress             &lt;0.29.0&gt; 2007-03-28 15:15:07
+9     progress             &lt;0.22.0&gt; 2007-03-28 15:15:07
+8     progress             &lt;0.23.0&gt; 2007-03-28 15:15:13
+7     progress             &lt;0.23.0&gt; 2007-03-28 15:15:13
+6     error                 &lt;0.23.0&gt; 2007-03-28 15:15:54
+5     crash_report      area_server 2007-03-28 15:15:54
+4     supervisor_report     &lt;0.23.0&gt; 2007-03-28 15:15:54
+3     progress             &lt;0.23.0&gt; 2007-03-28 15:15:54
+2     error                 &lt;0.29.0&gt; 2007-03-28 15:22:17
+1     error                 &lt;0.29.0&gt; 2007-03-28 15:22:20
+</code></pre><p>Что-то тут не так. У нас есть отчет об аварии сервера областей. Как узнать, что случилось (если бы мы не знали об этом)?</p>
+<pre><code>9&gt; rb:show(5).
+CRASH REPORT &lt;0.43.0&gt; 2007-03-28 15:15:54
+================================================================
+Crashing process
+pid                                                     &lt;0.43.0&gt;
+registeed_name                                       area_server
+error_info
+{function_clause,[{area_server,compute_area,[{rectangle,10,20}]},
+                  {area_server,handle_call,3},
+                  {gen_server,handle_msg,6},
+                  {proc_lib,init_p,5}]}
+initial_call
+    {gen,init_it,
+        [gen_server,
+        &lt;0.42.0&gt;,
+        &lt;0.42.0&gt;,
+        {local,area_server},
+        area_server,
+        [],
+         []]}
+ancestors                       [sellaprime_supervisor,&lt;0.40.0&gt;]
+messages                                                      []
+links                                                 [&lt;0.42.0&gt;]
+dictionary                                                    []
+trap_exit                                                  false
+status                                                   running
+heap_size                                                    233
+stack_size                                                    21
+reductions                                                   199
+ok
+</code></pre><p>Распечатка <code>{function_clause, compute_area, ...}</code> отображает точное место в программе сервера где произошла авария. Это должно помочь легко локализовать и исправить ошибку. Давайте перейдем к рассмотрению следующих ошибок:</p>
+<pre><code>10&gt; rb:show(2).
+
+ERROR REPORT &lt;0.33.0&gt; 2007-03-28 15:22:17
+================================================================
+*** Tell the Engineer to turn on the fan
+</code></pre><p>и</p>
+<pre><code>10&gt; rb:show(1).
+
+ERROR REPORT &lt;0.33.0&gt; 2007-03-28 15:22:20
+================================================================
+*** Danger over. Turn off the fan
+</code></pre><p>Это предупреждения нашей системы охлаждения при вычислении очень больших простых чисел!</p>
+<h2 id="18-7-">18.7 Приложение</h2>
+<p>Мы почти закончили. Всё что нам осталось сделать - это написать файл с расширением .app который будет содержать информацию о нашем приложении:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/sellaprime.app">sellaprime.app</a></p>
+<pre><code>%% This is the application resource file (.app file) for the &#39;base&#39;
+%% application.
+
+{application, sellaprime,
+    [{description, &quot;The Prime Number Shop&quot; },
+       {vsn, &quot;1.0&quot; },
+    {modules, [sellaprime_app, sellaprime_supervisor, area_server,
+        prime_server, lib_primes, my_alarm_handler]},
+    {registered,[area_server, prime_server, sellaprime_super]},
+    {applications, [kernel,stdlib]},
+    {mod, {sellaprime_app,[]}},
+    {start_phases, []}
+]}.
+</code></pre><p>Теперь нам потребуется написать модуль обратных вызовов с именем модуля из предыдущего примера:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/sellaprime_app.erl">sellaprime_app.erl</a></p>
+<pre><code>-module(sellaprime_app).
+-behaviour(application).
+-export([start/2, stop/1]).
+
+%%--------------------------------------------------------------------
+%% Function: start(Type, StartArgs) -&gt; {ok, Pid} |
+%%                                     {ok, Pid, State} |
+%%                                     {error, Reason}
+%% Description: This function is called whenever an application
+%% is started using application:start/1,2, and should start the
+%% processes
+%% of the application. If the application is structured according to the
+%% OTP design principles as a supervision tree, this means starting the
+%% top supervisor of the tree.
+%%--------------------------------------------------------------------
+
+start(_Type, StartArgs) -&gt;
+    sellaprime_supervisor:start_link(StartArgs).
+
+%%--------------------------------------------------------------------
+%% Function: stop(State) -&gt; void()
+%% Description: This function is called whenever an application
+%% has stopped. It is intended to be the opposite of Module:start/2 and
+%% should do any necessary cleaning up. The return value is ignored.
+%%--------------------------------------------------------------------
+
+stop(_State) -&gt;
+    ok.
+</code></pre><p>Здесь должны быть экспортированы функции start/2 и stop/1. Раз мы уже все это сделали, то теперь можем запустить наше приложение в оболочке Эрланга.</p>
+<pre><code>$ erl -boot start_sasl -config elog3
+1&gt; application:loaded_applications().
+[{kernel,&quot;ERTS CXC 138 10&quot;,&quot;2.11.3&quot;},
+ {stdlib,&quot;ERTS CXC 138 10&quot;,&quot;1.14.3&quot;},
+ {sasl,&quot;SASL CXC 138 11&quot;,&quot;2.1.4&quot;}]
+2&gt; application:load(sellaprime).
+ok
+3&gt; application:loaded_applications().
+[{sellaprime,&quot;The Prime Number Shop&quot;,&quot;1.0&quot;},
+ {kernel,&quot;ERTS CXC 138 10&quot;,&quot;2.11.3&quot;},
+ {stdlib,&quot;ERTS CXC 138 10&quot;,&quot;1.14.3&quot;},
+ {sasl,&quot;SASL CXC 138 11&quot;,&quot;2.1.4&quot;}]
+4&gt; application:start(sellaprime).
+*** my_alarm_handler init:{xyz,{alarm_handler,[]}}
+area_server starting
+prime_server starting
+ok
+5&gt; application:stop(sellaprime).
+prime_server stopping
+area_server stopping
+
+=INFO REPORT==== 2-Apr-2007::19:34:44 ===
+application: sellaprime
+exited: stopped
+type: temporary
+ok
+6&gt; application:unload(sellaprime).
+ok
+
+7&gt; application:loaded_applications().
+[{kernel,&quot;ERTS CXC 138 10&quot;,&quot;2.11.4&quot;},
+ {stdlib,&quot;ERTS CXC 138 10&quot;,&quot;1.14.4&quot;},
+ {sasl,&quot;SASL CXC 138 11&quot;,&quot;2.1.5&quot;}]
+</code></pre><p>Вот теперь это вполне оперившееся приложение. Во второй строке мы загрузили приложение; этот вызов загружает весь код, но не запускает приложение. В четвертой строке мы запустили приложение, а в пятой строке остановили его. Заметьте, все видно в распечатке, когда приложения запускаются и останавливаются, соответствующие функции сервера простых чисел и сервера площади были вызваны. В шестой строке мы выгрузили приложение. Все модули приложения были удалены из памяти.</p>
+<p>Когда мы делаем полноценную систему, используя OTP, мы упаковываем её в приложение. Это даёт нам универсальный метод запуска, остановки и управления приложением.</p>
+<p>Заметьте, когда мы используем init:stop() для завершения работы системы, то все приложения будут завершены так, как это принято. Это правило хорошего тона.</p>
+<pre><code>$ erl -boot start_sasl -config elog3
+1&gt; application:start(sellaprime).
+*** my_alarm_handler init:{xyz,{alarm_handler,[]}}
+area_server starting
+prime_server starting
+ok
+2&gt; init:stop().
+ok
+prime_server stopping
+area_server stopping
+$
+</code></pre><p>Две строки следующие за командой номер 2 получены из сервера площади и сервера простых чисел, они показывают нам, что был вызван метод <code>terminate/2</code> из модуля обратных вызовов <code>gen_server</code>.</p>
+<h2 id="18-8-">18.8 Организация файловой системы</h2>
+<p>Я до сих пор ничего не упоминал об организации файловой системы. Это сделано специально - моя цель озадачивать вас проблемами по одной.</p>
+<p>Структурированное OTP приложение, обычно, содержит файлы соответствующие различным частям приложения в строго определенных местах. Это не требование; так как все нужные файлы могут быть найдены во время исполнения, но это не потребуется, если все файлы лежат в нужных местах.</p>
+<p>Все описанные в этой книге демонстрационные файлы располагаются в одной директории. Это простейшие примеры, и сделано это во избежание проблем с путями поиска и с взаимодействием между различными програмами.</p>
+<p>Основные файлы, используемые в компании sellaprime, следующие:</p>
+<table>
+<thead>
+<tr>
+<th><em>File</em></th>
+<th><em>Content</em></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>area_server.erl</code></td>
+<td>Сервер областей - модуль обратных вызовов gen_server</td>
+</tr>
+<tr>
+<td><code>prime_server.erl</code></td>
+<td>Сервер простых чисел - модуль обратных вызовов gen_server</td>
+</tr>
+<tr>
+<td><code>sellaprim_supervisor.erl</code></td>
+<td>Модуль обратных вызовов Супервизора</td>
+</tr>
+<tr>
+<td><code>sellaprim_app.erl</code></td>
+<td>Модуль обратных вызовов Приложения</td>
+</tr>
+<tr>
+<td><code>my_alam_handler.erl</code></td>
+<td>Модуль обратных вызовов Событий для gen_event</td>
+</tr>
+<tr>
+<td><code>sellaprime.app</code></td>
+<td>Спецификация приложения</td>
+</tr>
+<tr>
+<td><code>elog4.config</code></td>
+<td>Файл настроек Регистратора ошибок</td>
+</tr>
+</tbody>
+</table>
+<p>Для рассмотрения того как используются эти файлы и модули нам нужно рассмотреть последовательность событий, происходящих, когда приложение стартует:</p>
+<ol>
+<li><p>Мы запускаем систему следующими командами:</p>
+<pre><code> $ erl -boot start_sasl -config elog4.config
+ 1&gt; application:start(sellaprime).
+ ...
+</code></pre><p> Файл sellaprime.app должен находиться в корневом каталоге из которого
+ запускается Эрланг или в подкаталоге этого каталога.</p>
+<p> В этом случае контроллер приложения сможет обнаружить {mod, ...},
+ объявленый в sellaprime.app. Он содержит имя контроллера приложения. И
+ конечно же это модуль sellaprime_app.</p>
+</li>
+<li><p>Вызвается обратный вызов <code>sellaprime_app:start/2</code>.</p>
+</li>
+<li><p><code>sellaprime_app:start/2</code> вызывает <code>sellaprime_supervisor:start_link/2</code>, который, в свою очередь, запускает супервизор <code>sellaprime</code>.</p>
+</li>
+<li><p>Вызвается обратный вызов супервизора <code>sellaprime_supervisor:init/1</code> - он устанавливает обработчик ошибок и возвращает спецификацию надзора. Спецификация надзора сообщает как запускать сервер площади и сервер простых чисел.</p>
+</li>
+<li><p><code>sellaprime</code> супервизор запускает сервер площади и сервер простых чисел. Они реализованы как модули обратных вызовов <code>gen_server</code>.</p>
+</li>
+</ol>
+<p>Останавливать все это очень просто. Вы просто вызываете <code>application:stop(sellaprime)</code> или <code>init:stop()</code>.</p>
+<h2 id="18-9-">18.9 Монитор приложений</h2>
+<p>Монитор приложений - это программа с графическим интерфейсом (GUI) для просмотра запущенных приложений. Команда <code>appmon:start()</code> запускает монитор приложений. Когда вы выполните эту команду, вы увидите окно, похожее на то, которое изображено на рисунке 18.2. Для того чтобы увидеть структуру приложения, вы должны кликнуть по одному из приложений. Монитор приложений для приложения <code>sellaprime</code> показан на рисунке 18.3.</p>
+<h2 id="18-10-">18.10 Копаем глубже</h2>
+<p>Я пропустил довольно много подробностей, разъяснив только принципы. Вы сможете найти подробности на страницах руководства по <code>gen_event</code>, <code>error_logger</code>, <code>supervisor</code> и <code>application</code>.</p>
+<p><img src="https://raw2.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/18/Img-18.2.png" alt="Image"></p>
+<p>18.2 Монитор приложений. Вид при запуске.</p>
+<p><img src="https://raw2.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/18/Img-18.3.png" alt="Image"></p>
+<p>Рисунок 18.3 Приложение sellaprime</p>
+<p>Следующие файлы содержат более подробную информацию о том как использовать OTP поведения:</p>
+<p><a href="http://www.erlang.org/doc/pdf/design_principles.pdf">http://www.erlang.org/doc/pdf/design_principles.pdf</a>
+(страница 97) Gen servers, gen event, supervisors</p>
+<p><a href="http://www.erlang.org/doc/pdf/system_principles.pdf">http://www.erlang.org/doc/pdf/system_principles.pdf</a>
+(страница 19) Как сделать boot файл</p>
+<p><a href="http://www.erlang.org/doc/pdf/appmon.pdf">http://www.erlang.org/doc/pdf/appmon.pdf</a>
+(страница 16) Монитор приложений</p>
+<h2 id="18-11-">18.11 Как мы вычисляем простые числа?</h2>
+<p>Очень просто.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_primes.erl">lib_primes.erl</a></p>
+<pre><code>%% make a prime with at least K decimal digits.
+%% Here we use &#39;Bertrand&#39;s postulate.
+%% Bertrands postulate is that for every N &gt; 3,
+%% there is a prime P satisfying N &lt; P &lt; 2N - 2
+%% This was proved by Tchebychef in 1850
+%% (Erdos improved this proof in 1932)
+
+
+make_prime(1) -&gt;
+    lists:nth(random:uniform(5), [1,2,3,5,7]);
+make_prime(K) when K &gt; 0 -&gt;
+    new_seed(),
+    N = make_random_int(K),
+    if N &gt; 3 -&gt;
+         io:format(&quot;Generating a ~w digit prime &quot; ,[K]),
+         MaxTries = N - 3,
+         P1 = make_prime(MaxTries, N+1),
+         io:format(&quot;~n&quot; ,[]),
+         P1;
+       true -&gt;
+         make_prime(K)
+    end.
+
+make_prime(0, _) -&gt;
+    exit(impossible);
+make_prime(K, P) -&gt;
+    io:format(&quot;.&quot; ,[]),
+    case is_prime(P) of
+        true -&gt; P;
+        false -&gt; make_prime(K-1, P+1)
+    end.
+
+%% Fermat&#39;s little theorem says that if
+%% N is a prime and if A &lt; N then
+%% A^N mod N = A
+
+is_prime(D) -&gt;
+    new_seed(),
+    is_prime(D, 100).
+
+is_prime(D, Ntests) -&gt;
+    N = length(integer_to_list(D)) -1,
+    is_prime(Ntests, D, N).
+
+is_prime(0, _, _) -&gt; true;
+    is_prime(Ntest, N, Len) -&gt;
+    K = random:uniform(Len),
+    %% A is a random number less than N
+    A = make_random_int(K),
+    if
+        A &lt; N -&gt;
+            case lib_lin:pow(A,N,N) of
+                A -&gt; is_prime(Ntest-1,N,Len);
+                _ -&gt; false
+            end;
+        true -&gt;
+            is_prime(Ntest, N, Len)
+    end.
+
+1&gt; lib_primes:make_prime(500).
+Generating a 500 digit prime ..............................
+7910157269872010279090555971150961269085929213425082972662439
+1259263140285528346132439701330792477109478603094497394696440
+4399696758714374940531222422946966707622926139385002096578309
+0625341667806032610122260234591813255557640283069288441151813
+9110780200755706674647603551510515401742126738236731494195650
+5578474497545252666718280976890401503018406521440650857349061
+2139806789380943526673726726919066931697831336181114236228904
+0186804287219807454619374005377766827105603689283818173007034
+056505784153
+</code></pre>
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/17" title="Previous Post: Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге)" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге)</a></li>
+  
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

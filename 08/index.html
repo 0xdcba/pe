@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, паралельное программирование, процесс, межпроцессное взаимодействие, сообщения, receive, посылка сообщений">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 8. Параллельное программирование</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 8. Параллельное программирование</h1>
+			<p>В этой главе мы поговорим о процессах. Это маленькие изолированные виртуальные машины, которые могут исполнять функции Эрланга.</p>
+<p>Я уверен — вы встречали процессы раньше, но только в контексте операционных систем.</p>
+<p><em>В Эрланге процессы относятся к языку программирования, а НЕ к операционной системе</em></p>
+<p>В Эрланге:</p>
+<ul>
+<li>создание и уничтожение процессов очень быстрое;</li>
+<li>посылка сообщений между процессами очень быстрая;</li>
+<li>процессы ведут себя одинаково во всех операционных системах;</li>
+<li>может быть очень большое количество процессов;</li>
+<li>процессы не разделяют память и являются полностью независимыми;</li>
+<li>единственный способ для взаимодействия процессов — это через передачу сообщений.</li>
+</ul>
+<p>По этим причинам Эрланг иногда называют <em>языком с чистой передачей сообщений</em>.</p>
+<p>Если вы раньше не программировали процессы, то до вас доходили слухи о том, что это достаточно трудно. Возможно, вы слышали ужасные истории о нарушениях памяти (memory violations), race conditions, искажении разделяемой памяти (shared-memory corruption) и тому подобном. В Эрланге программировать процессы легко. Для этого нужно только три примитива:
+<code>spawn</code>, <code>send</code> и <code>receive</code>.</p>
+<h2 id="8-1-">8.1 Параллельные примитивы</h2>
+<p>Всё, чему мы научились о последовательном программировании, верно и для параллельного. Единственное, что нам надо сделать — это добавить следующие примитивы:</p>
+<pre><code>Pid = spawn(Fun)
+</code></pre><p>Создаёт новый параллельный процесс, который вычисляет (evaluates) <code>Fun</code>. Новый процесс работает параллельно с вызвавшим его. <code>Spawn</code> возвращает <code>Pid</code> (сокращение для <em>идентификатор процесса</em>). Вы можете использовать <code>Pid</code> для посылки сообщений процессу.</p>
+<pre><code>Pid ! Message
+</code></pre><p>Посылает сообщение <code>Message</code> процессу с идентификатором <code>Pid</code>. Посылка сообщения асинхронна. Отправитель не ждёт, а продолжает делать то, чем занимался. <code>!</code> называется оператором <code>send</code>.</p>
+<p><code>Pid ! M</code> определяется как <code>M</code> — примитив отправки сообщения <code>!</code> возвращает само сообщение. Поэтому <code>Pid1 ! Pid2 ! ... ! M</code> означает отправку сообщения <code>M</code> всем процессам — <code>Pid1</code>, <code>Pid2</code> и т. д.</p>
+<pre><code>receive ... end
+</code></pre><p>Принимает сообщение, которое было послано процессу. У него следующий синтаксис:</p>
+<pre><code>receive
+    Pattern1 [when Guard1] -&gt;
+        Expressions1;
+    Pattern2 [when Guard2] -&gt;
+        Expressions2;
+    ...
+end
+</code></pre><p>Когда сообщение прибывает к процессу система пытается сопоставить его с образцом <code>Pattern1</code> (возможно с учётом условия <code>Guard1</code>). Если это выполнилось успешно, то она вычисляет выражение <code>Expression1</code>. Если первый образец не совпадает, то она использует <code>Pattern2</code> и т.д. Если ни один из образцов не соответствует, сообщение сохраняется для последующей обработки, а процесс ожидает следующего сообщения. Это объясняется подробнее в части 8.6 Избирательный приём на стр. 12.</p>
+<p>Образцы и условия в операторе приёма имеют точно такую же синтаксическую форму и значение, как образцы и условия, которые мы используем, когда определяем функцию.</p>
+<h2 id="8-2-">8.2 Простой пример</h2>
+<p>Помните, как мы писали функцию <code>area/1</code> в части 3.1 <em>Модули</em>. Просто, чтобы напомнить вам, код, который определял функцию выглядел вот так:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/geometry.erl">Скачать geometry.erl</a></p>
+<pre><code>area({rectangle, Width, Ht}) -&gt; Width * Ht;
+area({circle, R}) -&gt; 3.14159 * R * R.
+</code></pre><p>Теперь перепишем эту же функцию как процесс:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/area_server0.erl">Скачать area_server0.erl</a></p>
+<pre><code>-module(area_server0).
+-export([loop/0]).
+
+loop() -&gt;
+    receive
+        {rectangle, Width, Ht} -&gt;
+            io:format(&quot;*Area of rectangle is ~p~n*&quot; ,[Width * Ht]),
+            loop();
+        {circle, R} -&gt;
+            io:format(&quot;*Area of circle is ~p~n*&quot; , [3.14159 * R * R]),
+            loop();
+        Other -&gt;
+            io:format(&quot;*I don&#39;t know what the area of a ~p is ~n*&quot; ,[Other]),
+            loop()
+    end.
+</code></pre><p>Мы можем создать процесс, который вычисляет <code>loop/0</code> в shell:</p>
+<pre><code>1&gt; Pid = spawn(fun area_server0:loop/0).
+&lt;0.36.0&gt;
+2&gt; Pid ! {rectangle, 6, 10}.
+Area of rectangle is 60
+{rectangle,6,10}
+3&gt; Pid ! {circle, 23}.
+Area of circle is 1661.90
+{circle,23}
+4&gt; Pid ! {triangle,2,4,5}.
+I don&#39;t know what the area of a {triangle,2,4,5} is
+{triangle,2,4,5}
+</code></pre><p>Что здесь произошло? В строке 1 мы создали новый параллельный процесс. <code>spawn(Fun)</code> создаёт параллельный процесс, который вычисляет <code>Fun</code>. Он возвращает <code>Pid</code>, который печатается как <code>&lt;0.36.0&gt;</code>.</p>
+<p>В строке 2 мы посылаем сообщение процессу. Это сообщение совпадает с первым образцом в операторе приёма в <code>loop/0</code>.</p>
+<pre><code>loop() -&gt;
+    receive
+        {rectangle, Width, Ht} -&gt;
+            io:format(&quot;*Area of rectangle is ~p~n*&quot; ,[Width * Ht]),
+            loop()
+    ...
+</code></pre><p>По приёму сообщения, процесс печатает площадь прямоугольника. В конце shell печатает <code>{rectangle,6,10}</code>. Это потому, что значением <code>Pid ! Msg</code> является <code>Msg</code>. Если мы отправляем процессу сообщение, которое он не понимает, он печатает предупреждение. Это выполняется кодом <code>Other -&gt;...</code> в операторе приёма <code>receive</code>.</p>
+<h2 id="8-3-">8.3 Клиент-сервер - введение</h2>
+<p>Архитектуры клиент-сервер центральные в Эрланге. По традиции клиент-серверные архитектуры включают сеть, которая отделяет клиента от сервера. Наиболее часто присутствуют несколько экземпляров клиента и один сервер. Слово <em>сервер</em> часто вызывает образ некоего достаточно тяжёлого программного обеспечения, работающего на специализированной машине.</p>
+<p>В нашем случае предполагается гораздо более легковесный механизм. Клиент и сервер в клиент-серверной архитектуре — это раздельные процессы, и для связи между клиентом и сервером используется обычная передача сообщений Эрланга. Как клиент, так и сервер могут работать на одной и той же машине или на двух разных машинах.</p>
+<p>Слова <em>клиент</em> и <em>сервер</em> ссылаются на роли, которые выполняют эти два процесса. Клиент всегда начинает вычисление отправляя <em>запрос</em> к серверу. Сервер вычисляет ответ и отправляет <em>отзыв</em> клиенту.</p>
+<p>Давайте-ка напишем наше первое клиент-серверное приложение. Начнём вносить небольшие изменения в программу, написанную нами в предыдущей главе.</p>
+<p>В предыдущей программе всё, что нам было надо — это послать запрос к процессу, который примет и напечатает этот запрос. Что мы хотим теперь — это послать ответ процессу, который послал первоначальный запрос. Проблема в том, что мы не знаем кому слать ответ. Чтобы сервер послал
+ответ, клиент должен включить адрес, на который сервер сможет ответить. Это подобно отправке письма кому-то — если вы хотите получить ответ, вам лучше бы указать в письме ваш адрес!</p>
+<p>Итак, отправитель должен включить обратный адрес в сообщение. Этого можно достичь, поменяв это:</p>
+<pre><code>Pid ! {rectangle, 6, 10}
+</code></pre><p>на это:</p>
+<pre><code>Pid ! {self(),{rectangle, 6, 10}}
+</code></pre><p><code>self()</code> - это <code>PID</code> клиентского процесса.</p>
+<p>Для ответа на запрос нам придётся поменять код, принимающий запросы с такого:</p>
+<pre><code>loop() -&gt;
+    receive
+        {rectangle, Width, Ht} -&gt;
+            io:format(&quot;*Area of rectangle is ~p~n*&quot; ,[Width * Ht]),
+            loop()
+    ...
+</code></pre><p>на такой:</p>
+<pre><code>loop() -&gt;
+    receive
+        {From, {rectangle, Width, Ht}} -&gt;
+            From ! Width * Ht,
+            loop();
+    ...
+</code></pre><p>Заметьте, как теперь мы посылаем результат наших вычислений обратно к процессу, определяемому параметром From. Клиент примет результат, т.к. он устанавливает этот параметр в свой собственный идентификатор процесса.</p>
+<p>Процесс, который посылает начальный запрос называется <em>клиентом</em>. Процесс, который принимает запрос и отправляет ответ называется <em>сервером</em>.</p>
+<p>В итоге, мы добавили маленькую полезную функцию, названную <code>rpc</code> (сокращение для <em>remote procedure call</em> — удалённый вызов процедуры), которая включает в себя посылку запроса на сервер и ожидание ответа:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/area_server1.erl">Скачать area_server1.erl</a></p>
+<pre><code>rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        Response -&gt;
+            Response
+    end.
+</code></pre><p>Сложив всё это вместе, мы получим следующее:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/area_server1.erl">Скачать area_server1.erl</a></p>
+<pre><code>-module(area_server1).
+-export([loop/0, rpc/2]).
+
+rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        Response -&gt;
+            Response
+    end.
+
+loop() -&gt;
+    receive
+        {From, {rectangle, Width, Ht}} -&gt;
+            From ! Width * Ht,
+            loop();
+        {From, {circle, R}} -&gt;
+            From ! 3.14159 * R * R,
+            loop();
+        {From, Other} -&gt;
+            From ! {error,Other},
+            loop()
+    end.
+</code></pre><p>Мы можем поэкспериментировать с этим в шелле:</p>
+<pre><code>1&gt; Pid = spawn(fun area_server1:loop/0).
+&lt;0.36.0&gt;
+2&gt; area_server1:rpc(Pid, {rectangle,6,8}).
+48
+3&gt; area_server1:rpc(Pid, {circle,6}).
+113.097
+4&gt; area_server1:rpc(Pid, socks).
+{error,socks}
+</code></pre><p>С этим кодом есть небольшая проблема. В функции <code>rpc/2</code> мы посылаем запрос к серверу и ждём ответа. <em>Но мы ждём не ответа от сервера</em>, мы ждём любое сообщение. Если какой-нибудь другой процесс пошлёт клиенту сообщение, в то время как он ждёт ответа от сервера, он (клиент) ошибочно истолкует это сообщение как ответ от сервера. Мы можем исправить это, поменяв вид оператора приёма на такой:</p>
+<pre><code>loop() -&gt;
+    receive
+        {From, ...} -&gt;
+            From ! {self(), ...},
+            loop()
+        ...
+</code></pre><p>и поменяв <code>rpc</code> на следующее:</p>
+<pre><code>rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        {Pid, Response} -&gt;
+            Response
+    end.
+</code></pre><p>Как это работает? Когда мы выполняем функцию <code>rpc</code>, <code>Pid</code> уже связан с каким-то значением, так что в образце <code>{Pid, Response}</code> <code>Pid</code> привязан к какому-то значению, а <code>Response</code> нет. Этот образец совпадёт только с сообщением, состоящим из двухэлементного кортежа, первый элемент которого <code>Pid</code>. Все другие сообщения будут поставлены в очередь. (<code>receive</code> обеспечивает то, что называется 8.6 Избирательный приём, который я опишу после этой главы).</p>
+<p>С этим изменением мы получим следующее:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/area_server2.erl">Скачать area_server2.erl</a></p>
+<pre><code>-module(area_server2).
+-export([loop/0, rpc/2]).
+
+rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        {Pid, Response} -&gt;
+            Response
+    end.
+
+loop() -&gt;
+    receive
+        {From, {rectangle, Width, Ht}} -&gt;
+            From ! {self(), Width * Ht},
+            loop();
+        {From, {circle, R}} -&gt;
+            From ! {self(), 3.14159 * R * R},
+            loop();
+        {From, Other} -&gt;
+            From ! {self(), {error,Other}},
+            loop()
+    end.
+</code></pre><p>Это работает как и ожидается:</p>
+<pre><code>1&gt; Pid = spawn(fun area_server2:loop/0).
+&lt;0.37.0&gt;
+3&gt; area_server2:rpc(Pid, {circle, 5}).
+78.5397
+</code></pre><p>Есть одно финальное улучшение, которое мы можем сделать. Мы можем <em>скрыть</em> spawn и <code>rpc</code> <em>внутри</em> модуля. Это хорошая практика, т.к. мы сможем менять внутренние детали сервера без изменения кода клиента. В конце мы получаем это:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code\area_server_final.erl">Скачать area_server_final.erl</a></p>
+<pre><code>-module(area_server_final).
+-export([start/0, area/2]).
+
+start() -&gt; spawn(fun loop/0).
+
+area(Pid, What) -&gt;
+    rpc(Pid, What).
+
+rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        {Pid, Response} -&gt;
+            Response
+    end.
+
+loop() -&gt;
+    receive
+        {From, {rectangle, Width, Ht}} -&gt;
+            From ! {self(), Width * Ht},
+            loop();
+        {From, {circle, R}} -&gt;
+            From ! {self(), 3.14159 * R * R},
+            loop();
+        {From, Other} -&gt;
+            From ! {self(), {error,Other}},
+            loop()
+    end.
+</code></pre><p>Для запуска этого мы вызываем функции <code>start/0</code> и <code>area/2</code> (где раньше мы вызывали <code>spawn</code> и <code>rpc</code>). Имена лучше те, которые более точно описывают то, что делает сервер:</p>
+<pre><code>1&gt; Pid = area_server_final:start().
+&lt;0.36.0&gt;
+2&gt; area_server_final:area(Pid, {rectangle, 10, 8}).
+80
+4&gt; area_server_final:area(Pid, {circle, 4}).
+50.2654
+</code></pre><h2 id="8-4-">8.4 Как долго занимает создать процесс?</h2>
+<p>В этом месте вы можете начать волноваться о производительности. В конце концов, если мы создаём сотни или тысячи эрланговых процессов, мы должны как-то расплачиваться за это. Давайте поищем — как.</p>
+<p>Чтобы исследовать это мы измерим время, нужное для порождения большого количества процессов. Вот программа:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/processes.erl">Скачать processes.erl</a></p>
+<pre><code>-module(processes).
+-export([max/1]).
+
+%% max(N)
+%% Create N processes then destroy them
+%% See how much time this takes
+
+max(N) -&gt;
+    Max = erlang:system_info(process_limit),
+    io:format(&quot;*Maximum allowed processes:~p~n*&quot; ,[Max]),
+    statistics(runtime),
+    statistics(wall_clock),
+    L = for(1, N, fun() -&gt; spawn(fun() -&gt; wait() end) end),
+    {_, Time1} = statistics(runtime),
+    {_, Time2} = statistics(wall_clock),
+    lists:foreach(fun(Pid) -&gt; Pid ! die end, L),
+    U1 = Time1 * 1000 / N,
+    U2 = Time2 * 1000 / N,
+    io:format(&quot;*Process spawn time=~p (~p) microseconds~n*&quot;, [U1, U2]).
+
+wait() -&gt;
+    receive
+        die -&gt; void
+    end.
+
+for(N, N, F) -&gt; [F()];
+
+for(I, N, F) -&gt; [F()|for(I+1, N, F)].
+</code></pre><p>Вот результаты, которые я получил на компьютере, который я использовал для написания этой книги - 2.40GHz Intel Celeron с 512 МБ ОЗУ под управлением Ubuntu Linux:</p>
+<pre><code>1&gt; processes:max(20000).
+Maximum allowed processes:32768
+Process spawn time=3.50000 (9.20000) microseconds
+ok
+2&gt; processes:max(40000).
+Maximum allowed processes:32768
+=ERROR REPORT==== 26-Nov-2006::14:47:24 ===
+Too many processes
+...
+</code></pre><p>Порождение 20,000 процессов заняло в среднем 3,5 мкс/процесс процессорного времени и 9,2 мкс прошедшего (по часам) времени.</p>
+<p>Заметьте, что я использовал встроенную функцию (BIF) <code>erlang:system_info(process_limit)</code> для нахождения максимального разрешенного количества процессов. Заметьте, что некоторые из них
+зарезервированы, так что ваша программа не может на самом деле использовать это количество. Когда мы превышаем системный лимит система рушится с сообщением об ошибке (команда 2).</p>
+<p>Системный лимит установлен в 32,767 процессов. Чтобы превысить этот лимит вам придётся запустить эмулятор Эрланга с параметром +P как здесь:</p>
+<pre><code>$ erl +P 500000
+1&gt; processes:max(50000).
+Maximum allowed processes:500000
+Process spawn time=4.60000 (10.8200) microseconds
+ok
+2&gt; processes:max(200000).
+Maximum allowed processes:500000
+Process spawn time=4.10000 (10.2150) microseconds
+3&gt; processes:max(300000).
+Maximum allowed processes:500000
+Process spawn time=4.13333 (73.6533) microseconds
+</code></pre><p>В предыдущем примере я установил системный лимит в полмиллиона процессов. Мы можем видеть, что время порождения процесса по существу постоянно между 50,000 и 200,000 процессов. При 300,000 процессов процессорное время порождения остаётся постоянным, но прошедшее время
+увеличивается в 7 раз. Также я слышу, как вибрирует мой диск. Это верный знак того, что система выполняет подкачку и у меня недостаточно физической памяти для работы с 300,000 процессов.</p>
+<h2 id="8-5-">8.5 Приём с таймаутом</h2>
+<p>Иногда оператор приёма может вечно ждать сообщения, которое так никогда и не придёт. Для этого может быть несколько причин. Например, может быть логическая ошибка в нашей программе или процесс, который собирался отправить нам сообщение рухнул до отправки.</p>
+<p>Чтобы избежать проблем мы можем добавить таймаут в оператор приёма. Он устанавливает максимально время, которое процесс будет ждать при получении сообщения. Синтаксис этого следующий:</p>
+<pre><code>receive
+    Pattern1 [when Guard1] -&gt;
+        Expressions1;
+    Pattern2 [when Guard2] -&gt;
+        Expressions2;
+    ...
+after Time -&gt;
+    Expressions
+end.
+</code></pre><p>Если в течение Time миллисекунд в оператор приёма не придёт ни одного совпадающего сообщения, то процесс перестаёт ждать сообщения и вычисляет Expressions.</p>
+<h3 id="-">Приём только с таймаутом</h3>
+<p>Вы можете написать <code>receive</code>, содержащий только таймаут. Используя это, мы можем определить функцию <code>sleep(T)</code>, которая останавливает текущий процесс на время <code>T</code> миллисекунд.</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">Скачать lib_misc.erl</a></p>
+<pre><code>sleep(T) -&gt;
+    receive
+        after T -&gt;
+            true
+    end.
+</code></pre><h3 id="-">Приём с нулевым таймаутом</h3>
+<p>Значение таймаута 0 приводит к немедленному срабатыванию таймаута, но перед тем, как это случится, система пытается сопоставить хоть какой-нибудь образец из почтового ящика. Мы можем использовать это для определения функции <code>flush_buffer</code>, которая полностью опустошает почтовый ящик процесса:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">Скачать lib_misc.erl</a></p>
+<pre><code>flush_buffer() -&gt;
+    receive
+        _Any -&gt;
+            flush_buffer()
+    after 0 -&gt;
+        true
+    end.
+</code></pre><p>Без оператора таймаута функция <code>flush_buffer</code> остановилась бы навечно и не вернула бы ничего, если бы почтовый ящик был пуст. Мы также можем использовать нулевой таймаут для создания некоей формы «приоритетного приёма», как в следующем примере:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/lib_misc.erl">Скачать lib_misc.erl</a></p>
+<pre><code>priority_receive() -&gt;
+    receive
+        {alarm, X} -&gt;
+            {alarm, X}
+    after 0 -&gt;
+        receive
+            Any -&gt;
+                Any
+        end
+    end.
+</code></pre><p>Если в почтовом ящике есть сообщение, не соответствующее образцу <code>{alarm, X}</code>, то <code>priority_receive</code> примет первое сообщение из почтового ящика. Если же никаких сообщений нет, то приём приостановится на внутреннем операторе <code>receive</code> до прихода любого сообщения. Если есть сообщение, соответствующее <code>{alarm, X}</code>, то это сообщение будет немедленно возвращено
+как результат. Помните, что секция <code>after</code> проверяется только после проверки на соответствие шаблону всех сообщений из почтового ящика.</p>
+<p>Без оператора <code>after 0</code> сообщение <code>alarm</code> не сработало бы первым.</p>
+<p><em>Замечание:</em> использование больших почтовых ящиков совместно с приоритетным приёмом достаточно неэффективно, так что, если вы собираетесь использовать эту технику, убедитесь, что ваши почтовые ящики не слишком большие.</p>
+<h3 id="-">Приём с бесконечным таймаутом</h3>
+<p>Если значением таймаута в операторе приёма является атом <code>infinity</code>, то таймаут <em>никогда</em> не сработает. Это может быть полезным для программ, в которых значение таймаута вычисляется вне оператора <code>receive</code>. Иногда вычисление может захотеть вернуть какое-то конкретное значение, а иногда оно может захотеть, чтобы <code>receive</code> ждал вечно.</p>
+<h3 id="-">Организация таймера</h3>
+<p>Мы можем организовать простой таймер, используя таймауты в приёме.</p>
+<p>Функция <code>stimer:start(Time, Fun)</code> вычислит <code>Fun</code> (функцию без аргументов) после ожидания <code>Time</code> миллисекунд. Она возвращает обработчик (который на самом деле <code>PID</code>), который может использоваться для отмены таймера при необходимости.</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/stimer.erl">Скачать stimer.erl</a></p>
+<pre><code>-module(stimer).
+-export([start/2, cancel/1]).
+
+start(Time, Fun) -&gt; spawn(fun() -&gt; timer(Time, Fun) end).
+
+cancel(Pid) -&gt; Pid ! cancel.
+
+timer(Time, Fun) -&gt;
+    receive
+        cancel -&gt;
+            void
+    after Time -&gt;
+        Fun()
+    end.
+</code></pre><p>Мы можем проверить это следующим образом:</p>
+<pre><code>1&gt; Pid = stimer:start(5000, fun() -&gt; io:format(&quot;timer event~n&quot;) end).
+&lt;0.42.0&gt;
+timer event
+</code></pre><p>Здесь я ждал больше пяти секунд, чтобы сработал таймер. Сейчас я запущу таймер и отменю его до того, как выйдет таймерное время:</p>
+<pre><code>2&gt; Pid1 = stimer:start(25000, fun() -&gt; io:format(&quot;timer event~n&quot;) end).
+&lt;0.49.0&gt;
+3&gt; stimer:cancel(Pid1).
+cancel
+</code></pre><h2 id="8-6-">8.6 Избирательный приём</h2>
+<p>До сих пор мы проходили по верхушкам того, как действительно работают <code>send</code> и <code>receive</code>. <code>Send</code> на самом деле не отправляет сообщения процессу. В место того, <code>send</code> отправляет сообщение в почтовый ящик процесса, а <code>receive</code> пытается удалить сообщения из почтового ящика.</p>
+<p>Каждый процесс в Эрланге имеет свой собственный почтовый ящик. Когда вы посылаете сообщение процессу, это сообщение помещается в почтовый ящик. Почтовый ящик проверяется только тогда, когда программа вычисляет оператор <code>receive</code>:</p>
+<pre><code>receive
+    Pattern1 [when Guard1] -&gt;
+        Expressions1;
+    Pattern2 [when Guard1] -&gt;
+        Expressions1;
+    ...
+    after Time -&gt;
+        ExpressionTimeout
+end.
+</code></pre><p><code>receive</code> работает следующим образом:</p>
+<ol>
+<li>Когда мы входим в оператор <code>receive</code>, мы запускаем таймер (но только, если в выражении присутствует секция <code>after</code>).</li>
+<li>Взять первое сообщение из почтового ящика и попытаться соотнести его с образцами <code>Pattern1</code>, <code>Pattern2</code> и т.д. Если соответствие успешно, то сообщение удаляется из почтового ящика и вычисляется выражение, следующее за образцом.</li>
+<li>Если ни один из образцов в операторе <code>receive</code> не соответствует первому сообщению из почтового ящика, то первое сообщение удаляется из ящика и помещается в «отложенную очередь» (save queue). Затем так же проверяется второе сообщение. Эта процедура повторяется до тех пор, пока не будет найдено совпадающее сообщение, либо не будут проверены все
+сообщения из почтового ящика.</li>
+<li>Если ни одно сообщение из почтового ящика не соответствует, процесс приостанавливается и ждёт до тех пор, пока новое сообщение не будет помещено в почтовый ящик. Заметьте, что когда новое сообщение прибывает, сообщения из отложенной очереди не проверяются заново на соответствие образцам. Проверяется только новое сообщение.</li>
+<li>Как только сообщение совпало с образцом, сразу после этого все сообщения из отложенной очереди помещаются обратно в почтовый ящик в том же порядке, в каком они прибыли к процессу. Если был установлен таймер, то он очищается.</li>
+<li>Если таймер истёк, пока мы ждали сообщение, то выполнится выражение ExpressionTimeout, после чего все отложенные сообщения поместятся обратно в почтовый ящик в том же порядке, в каком они прибыли к процессу.</li>
+</ol>
+<h2 id="8-7-">8.7 Зарегистрированные процессы</h2>
+<p>Если мы хотим послать сообщение процессу, нам надо знать его <code>PID</code>. Это часто не удобно, т.к. <code>PID</code> надо передать всем процессам в системе, желающим взаимодействовать с данным процессом. С другой стороны, это очень <em>безопасно</em>. Если вы не раскрываете <code>PID</code> процесса, другие процессы
+не могут взаимодействовать с ним никаким образом.</p>
+<p>У Эрланга есть метод <em>публикации</em> идентификатора процесса, так что любой процесс в системе может общаться с этим процессом. Такой процесс называется <em>зарегистрированным процессом</em>. Есть четыре встроенные функции (BIF) для управления зарегистрированными процессами:</p>
+<pre><code>register(AnAtom, Pid)
+</code></pre><p>зарегистрировать процесс <code>Pid</code> с именем <code>AnAtom</code>. Регистрация не успешна, если <code>AnAtom</code> уже был использован для регистрации процесса.</p>
+<pre><code>unregister(AnAtom)
+</code></pre><p>удалить любые регистрации, связанные с <code>AnAtom</code>.</p>
+<p><em>Замечание</em>: если зарегистрированный процесс умирает, он автоматически разрегистрируется</p>
+<pre><code>whereis(AnAtom) -&gt; Pid | undefined
+</code></pre><p>находит, где зарегистрирован <code>AnAtom</code>. Возвращает идентификатор процесса <code>Pid</code>, либо возвращает атом <code>undefined</code>, если никакой процесс не связан с <code>AnAtom</code>.</p>
+<pre><code>registered() -&gt; [AnAtom::atom()]
+</code></pre><p>возвращает список зарегистрированных процессов в системе.</p>
+<p>Используя <code>register</code>, мы можем пересмотреть пример из части 8.2 Простой пример на стр. 2 и можем попытаться зарегистрировать имя процесса, который мы создали:</p>
+<pre><code>1&gt; Pid = spawn(fun area_server0:loop/0).
+&lt;0.51.0&gt;
+2&gt; register(area, Pid).
+true
+</code></pre><p>Как только имя зарегистрировано, мы может отправить ему сообщение подобно этому:</p>
+<pre><code>3&gt; area ! {rectangle, 4, 5}.
+Area of rectangle is 20
+{rectangle,4,5}
+</code></pre><h3 id="-">Часы</h3>
+<p>Мы можем использовать регистрацию при создании процесса, который представляет из себя часы:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/clock.erl">Скачать clock.erl</a></p>
+<pre><code>-module(clock).
+-export([start/2, stop/0]).
+
+start(Time, Fun) -&gt;
+    register(clock, spawn(fun() -&gt; tick(Time, Fun) end)).
+
+stop() -&gt; clock ! stop.
+
+tick(Time, Fun) -&gt;
+    receive
+        stop -&gt;
+            void
+    after Time -&gt;
+        Fun(),
+        tick(Time, Fun)
+    end.
+</code></pre><p>Часы будут радостно отстукивать, пока вы не остановите их:</p>
+<pre><code>3&gt; clock:start(5000, fun() -&gt; io:format(&quot;TICK ~p~n&quot;,[erlang:now()]) end).
+
+true
+
+TICK {1164,553538,392266}
+
+TICK {1164,553543,393084}
+
+TICK {1164,553548,394083}
+
+TICK {1164,553553,395064}
+
+4&gt; clock:stop().
+
+stop
+</code></pre><h2 id="8-8-">8.8 Как нам писать параллельную программу?</h2>
+<p>Когда я пишу параллельную программу, то почти всегда я начинаю с чего-то подобного:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/ctemplate.erl">Скачать ctemplate.erl</a></p>
+<pre><code>-module(ctemplate).
+-compile(export_all).
+
+start() -&gt;
+    spawn(fun() -&gt; loop([]) end).
+
+rpc(Pid, Request) -&gt;
+    Pid ! {self(), Request},
+    receive
+        {Pid, Response} -&gt;
+            Response
+    end.
+
+loop(X) -&gt;
+    receive
+        Any -&gt;
+            io:format(&quot;Received:~p~n&quot; ,[Any]),
+            loop(X)
+    end.
+</code></pre><p>Цикл приёма — это просто пустой цикл, который принимает и печатает все сообщения, которые я посылаю ему. По мере разработки программы я начинаю посылать сообщения процессу. Т.к. я начинаю цикл приёма вообще без образцов, которые соответствуют сообщениям, то получу распечатку из кода в конце оператора приёма. Когда это происходит, я добавляю образец
+соответствия в цикл приёма и перезапускаю программу. Эта техника в значительной степени определяет порядок, в котором я пишу программы — я начинаю с небольшой программы, постепенно увеличиваю её, тестируя по мере написания.</p>
+<h2 id="8-9-">8.9 Слово о хвостовой рекурсии</h2>
+<p>Взгляните на цикл приёма в сервере вычисления площади, который мы писали ранее:</p>
+<p><a href="http://media.pragprog.com/titles/jaerlang/code/area_server_final.erl">Скачать area_server_final.erl</a></p>
+<pre><code>loop() -&gt;
+    receive
+        {From, {rectangle, Width, Ht}} -&gt;
+            From ! {self(), Width * Ht},
+            loop();
+        {From, {circle, R}} -&gt;
+            From ! {self(), 3.14159 * R * R},
+            loop();
+        {From, Other} -&gt;
+            From ! {self(), {error,Other}},
+            loop()
+    end.
+</code></pre><p>Если вы посмотрите внимательно, то увидите, что каждый раз, когда мы принимаем сообщение, мы обрабатываем это сообщение и затем сразу же снова вызываем <code>loop()</code>. Такая процедура называется <em>хвостовой рекурсией</em>. Функция с хвостовой рекурсией может быть скомпилирована так, что последний вызов функции в последовательности операторов может заменяться обычным переходом на начало функции, которую вызывали. Это значит, что функция с хвостовой рекурсией может зацикливаться бесконечно без потребления стека.</p>
+<p>Допустим, мы написали следующий (неправильный) код:</p>
+<pre><code>loop() -&gt;
+    {From, {rectangle, Width, Ht}} -&gt;
+        From ! {self(), Width * Ht},
+        loop(),
+        someOtherFunc();
+    {From, {circle, R}} -&gt;
+        From ! {self(), 3.14159 * R * R},
+        loop();
+    ...
+end.
+</code></pre><p>В строке 4 мы вызываем <code>loop()</code>, но компьютер должен сообразить что «после вызова <code>loop()</code>, мне придётся вернуться сюда, так как надо будет вызвать функцию <code>someOtherFunc()</code> в строке 5». Поэтому он сохраняет адрес <code>someOtherFunc</code> в стеке и переходит к началу <code>loop()</code>. Проблема тут в том, что <code>loop()</code> никогда не возвращается. Вместо этого она зацикливается
+навечно. Так что каждый раз, когда мы проходим строку 4 адрес возврата заносится в стек. И в конце концов у системы заканчивается место.</p>
+<p>Избежать этого легко — если вы пишите функцию <code>F</code>, которая никогда не возвращается (такую как <code>loop()</code>), убедитесь, что вы никогда ничего не вызываете <em>после</em> вызова <code>F</code> и не используйте <code>F</code> в создании кортежей или списков.</p>
+<h2 id="8-10-mfa">8.10 Порождение с MFA</h2>
+<p>Большинство программ, которые мы пишем используют <code>spawn(Fun)</code> для создания нового процесса. Это прекрасно до тех пор, пока мы не захотим обновлять наш код на ходу. Иногда мы хотим написать код, который можно обновлять в то время, как он выполняется. Если мы хотим быть уверенными в том, что наш код может обновляться динамически, то нам надо использовать другую форму <code>spawn</code>.</p>
+<pre><code>spawn(Mod, FuncName, Args)
+</code></pre><p>это создаёт новый процесс. <code>Args</code> — это список аргументов вида <code>[Arg1, Arg2, ..., ArgN]</code>. Вновь созданный процесс начинает вычисление <code>Mod:FuncName(Arg1, Arg2, ..., ArgN)</code>.</p>
+<p>Порождение функции с явным указанием модуля, имени функции и списка аргументов (называемые MFA) — это верный способ быть уверенными в том, что наши процессы будут корректно обновляться новыми версиями кода модуля, если он компилируется и в то же время используется. Механизм
+динамического обновления кода не работает с порождёнными функциями. Он работает только с явно указанными MFA. За дальнейшими деталями читайте приложение E.4 <em>Динамическая загрузка кода</em>.</p>
+<h2 id="8-11-">8.11 Проблемы</h2>
+<p>Напишите функцию <code>start(AnAtom, Fun)</code>, чтобы зарегистрировать <code>AnAtom</code> как <code>spawn(Fun)</code>. Убедитесь, что ваша программа работает корректно в случае, когда два параллельных процесса одновременно вычисляют <code>start/2</code>. В этом случае вы должны гарантировать, что один из этих процессов преуспеет, а другой потерпит неудачу.</p>
+<p>Напишите кольцевой тест. Создайте <code>N</code> процессов в кольце. Отправьте сообщение по кольцу <code>M</code> раз так, чтобы было отправлено <code>N * M</code> сообщений. Замерьте время, которое тратится для разных значений <code>N</code> и <code>M</code>.</p>
+<p>Напишите подобную программу на каком-нибудь другом языке программирования, известном вам. Сравните результаты. Напишите блог и опубликуйте результаты в Интернете!</p>
+<p>Вот и всё — теперь вы можете писать параллельные программы!</p>
+<p>Дальше мы рассмотрим восстановление после ошибок и увидим, как мы можем писать параллельные программы, устойчивые к сбоям, используя три дополнительные концепции: линки, сигналы и перехват завершения процессов. Это в следующей главе.</p>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/07" title="Previous Post: Глава 7. Параллельность" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 7. Параллельность</a></li>
+  <li class="next"><a href="http://erlangbook.tk/09" title="Next Post: Глава 9. Ошибки в параллельных программах" class="navlinks-next">Глава 9. Ошибки в параллельных программах <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

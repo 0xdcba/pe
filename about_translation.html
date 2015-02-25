@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>О переводе</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" class="active">
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">О переводе</h1>
+			<p>Репозиторий на <strong>GitHub</strong> <a href="https://github.com/dyp2000/Russian-Armstrong-Erlang">https://github.com/dyp2000/Russian-Armstrong-Erlang</a></p>
+<h2 id="-">Что нового?</h2>
+<p><code>2014-01-13</code> Книга одним файлом PDF <a href="https://github.com/dyp2000/Russian-Armstrong-Erlang/raw/master/pdf/fullbook.pdf">здесь</a>.</p>
+<p><code>2013-12-30</code> Форматирование глав с 1 по 11. Объединение книги в один файл MD и PDF</p>
+<p><code>2013-11-05</code> Добавлена глава 14.</p>
+<h2 id="-">Установка зависимостей</h2>
+<p>Установка зависимостей под linux с помощью yum может выглядеть следующим образом:</p>
+<pre><code>$ yum install ruby calibre rubygems ruby-devel rubygem-ruby-debug
+$ gem install rdiscount
+</code></pre><p>А с помощью apt-get установка зависимостей может быть произведена вот так:</p>
+<pre><code>$ apt-get install ruby calibre rubygems ruby-dev rake pandoc texlive-xetex libmaruku-ruby 
+$ gem install rdiscount
+</code></pre><p>Под Mac OS X:</p>
+<pre><code>$ install calibre app
+$ check ruby and rubygems
+$ easy_install pygments
+$ port install pandoc texlive +full texlive-xetex
+$ gem install rdiscount
+</code></pre><h2 id="-">Сборка книги из исходников</h2>
+<p>Собрать Русский перевод книги для <strong>amazon kindle</strong>:</p>
+<pre><code> $ ./makeebooks ru
+</code></pre><p>или</p>
+<pre><code> $ FORMAT=mobi ./makeebooks ru
+</code></pre><p>Собрать Русский перевод книги в формате <strong>ePub</strong>:</p>
+<pre><code> $ FORMAT=epub ./makeebooks ru
+</code></pre><p>Собрать Русский перевод книги в формате <strong>PDF</strong>:</p>
+<pre><code>$  ./makepdfs ru
+</code></pre>
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

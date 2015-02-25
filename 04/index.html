@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, ошибки, исключения, try, catch, перехват исключений, обработка ошибок">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 4. Исключения</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 4. Исключения</h1>
+			<h2 id="4-1-">4.1. Исключения</h2>
+<p>Сообщения Эрланга об ошибках и реакции на них. До того как мы глубже
+погрузимся в последовательное программирование, давайте кратко
+рассмотрим эту тему. Это может показаться неожиданным отклонением от
+темы, но, если наша цель - писать надежные и распределенные приложения,
+то понимание того, как обрабатываются ошибки становится просто
+необходимым.</p>
+<p>Всякий раз когда мы вызываем функцию в Эрланге, происходит одно из двух:
+либо функция возвращает нам значение, или что-то идет не так. Мы видели
+такие примеры в предыдущей главе. Помните функцию cost?</p>
+<pre><code>cost(oranges) -&gt; 5;
+cost(newspaper) -&gt; 8;
+cost(apples) -&gt; 2;
+cost(pears) -&gt; 9;
+cost(milk) -&gt; 7.
+</code></pre><p>И вот что происходит при ее работе:</p>
+<pre><code>1&gt; shop:cost(apples).
+2
+2&gt; shop:cost(socks).
+=ERROR REPORT==== 30-Oct-2006::20:45:10 ===
+Error in process &lt;0.34.0&gt; with exit value:
+{function_clause,[{shop,cost,[socks]},
+{erl_eval,do_apply,5},
+{shell,exprs,6},
+{shell,eval_loop,3}]}
+</code></pre><p>Когда мы вызвали cost(socks) функция обвалилась (crashed). Это произошло
+потому что ни один из вариантов исполнения функции (&quot;клозов&quot;) не подошел
+к данному аргументу функции.</p>
+<p>Вызов cost(socks) -это полная бессмыслица. Функция не сможет вернуть нам
+никакого значения в ответ, поскольку цена на носки (socks) в ней просто
+не определена. В этом случае, вместо возврата значения, система
+<em>запускает исключение</em> - так, на техническом языке, называется &quot;падение&quot;
+программы.</p>
+<p>Мы не пытаемся исправить эту ошибку, потому что это невозможно. Мы не
+знаем стоимость носков, а потому не можем вернуть никакое значение.
+Теперь это дело того кто вызвал так функцию (cost(socks)) решать, что-же
+теперь делать дальше, когда функция &quot;обвалилась&quot;.</p>
+<p>Исключения запускаются системой, когда происходят внутренние ошибки или
+в самом коде, когда вызываются throw(Exception), exit(Exception). или
+erlang:error(Exception).</p>
+<p>В Эрланге есть два метода <em>перехвата</em> исключений. Один из них -
+заключение вызова функции, которая может запустить исключение внутрь
+<strong>try...catch</strong> выражения. Второй - это заключить такой вызов в
+<strong>catch</strong> выражение.</p>
+<h2 id="4-2-">4.2. Запуск Исключения</h2>
+<p>Исключения запускаются автоматически, когда система обнаруживает
+какую-либо ошибку. Типичные ошибки - несоответствие образцу
+(включая отсутствие подходящих способов обработки аргументов функции),
+либо вызов стандартных BIF-функций с неправильным типом аргументов
+(например, вызов atom_to_list с целочисленным аргументом).</p>
+<p>Кроме того, мы можем сами, непосредственно сгенерировать ошибку, вызвав
+одну из порождающих исключение BIF-функций:</p>
+<pre><code>exit(Why)
+</code></pre><p>Она используется когда вы действительно хотите терминировать данный
+процесс. Если соответствующее исключение не будет перехвачено, то
+сообщение вида {’EXIT’,Pid,Why} будет послано всем процессам, которые
+связанны с данным. Подробнее мы поговорим об этом в разделе 9.1
+Связанные процессы, поэтому здесь я не буду останавливаться на деталях.</p>
+<pre><code>throw(Why)
+</code></pre><p>Эта функция используется для запуска исключения, которое вызывающий,
+возможно захочет перехватить. В этом случае мы должны указать в
+документации к нашей функции , что она может запускать исключение. У
+пользователя такой функции будет две альтернативы: либо программировать
+как обычно и просто слепо игнорировать это исключение, либо можно
+заключить вызов этой функции внутри try...catch выражения и обработать
+его.</p>
+<pre><code>erlang:error(Why)
+</code></pre><p>Она используется чтобы обозначить &quot;критическую&quot; ошибку в программе. Так
+иногда бывает лучше, когда происходит что-то совсем нехорошее, с чем
+очень трудно справиться. Это эквивалентно сгенерированной внутренней
+ошибке.</p>
+<p>Теперь давайте попробуем перехватить эти исключения.</p>
+<h2 id="4-3-try-catch">4.3. try...catch</h2>
+<p>Если вы знакомы с языком Java, тогда выражение try...catch будет для
+вас весьма знакомо. Java перехватывает исключения с помощью следующего
+синтаксиса:</p>
+<pre><code>try {
+    block
+} catch (exception type identifier) {
+    block
+} catch (exception type identifier) {
+    block
+}
+...
+finally {
+    block
+}
+</code></pre><p>В Эрланге эта конструкция исключительно похожа:</p>
+<pre><code>try FuncOrExpressionSequence of
+    Pattern1 [when Guard1] -&gt; Expressions1;
+    Pattern2 [when Guard2] -&gt; Expressions2;
+    ...
+catch
+    ExceptionType: ExPattern1 [when ExGuard1] -&gt; ExExpressions1;
+    ExceptionType: ExPattern2 [when ExGuard2] -&gt; ExExpressions2;
+    ...
+after
+    AfterExpressions
+end
+</code></pre><p>Заметьте схожесть между try...catch выражением и case выражением:</p>
+<pre><code>case Expression of
+Pattern1 [when Guard1] -&gt; Expressions1;
+Pattern2 [when Guard2] -&gt; Expressions2;
+...
+end
+</code></pre><p>Выражение try...catch это как case выражение выращенное на стероидах.
+Оно очень похоже на case выражение, но с блоками catch и after в своем
+начале и конце.</p>
+<p><strong>У выражения try...catch есть значение</strong></p>
+<p>Вы не забыли? В Эрланге все является выражением и все выражения имеют
+значение. А значит и выражение try...catch тоже имеет свое значение. То
+есть мы можем написать что-то вроде:</p>
+<pre><code>f(...) -&gt;
+    ...
+X = try
+    ...
+    end,
+Y = g(X),
+    ...
+</code></pre><p>Но, обычно, нам не надо значение выражения try...catch . Поэтому мы
+обычно пишем просто:</p>
+<pre><code>f(...) -&gt;
+    ...
+    try
+        ...
+    end,
+    ...
+...
+</code></pre><p>Выражение try...catch работает следующим образом: Первым делом
+вычисляется FuncOrExpessionSeq. Если его вычисление заканчивается без
+запуска исключения, тогда возвращенное оттуда значение проверяется на
+соответствие образцу Pattern1 (с охранником Guard1 если он
+присутствует), потом с образцом Pattern2 и так далее, пока не будет
+найдено соответствие, и тогда, значением всего выражения try...catch
+будет значение вычисления выражения, следующего за подходящим образцом.</p>
+<p>Если внутри FuncOrExpressionSeq будет запущено исключение, тогда на
+соответствие ему будут проявляться образцы ExPattern1 и так далее, пока
+не будет найдено соответствие и ее последовательность выражений для
+вычисления. ExeptionType - это атом (один из throw, exit или error),
+который говорит нам, как это исключение было сгенерировано. Если
+ExceptionType отсутствует, то, по-умолчанию, считается, что он - throw.</p>
+<p><em>Замечание</em>: внутренние ошибки, обнаруженные системой исполнения
+приложений Эрланга, всегда имеют метку error.</p>
+<p>Код, следующий за ключевым словом after, используется, обычно, для
+уборки после выполнения FuncOrExpressionSeq. Этот код гарантированно
+будет выполнен, даже если будет запущено исключение. Код в секции after
+будет запущен сразу после исполнения кода в секциях try или catch.
+Возвращаемое значение AfterExpressions будет утеряно.</p>
+<p>Если вы пришли сюда со знанием языка Руби, то все это должно быть также
+весьма знакомо для вас - в Руби мы используем следующий тип выражения:</p>
+<pre><code>begin
+        ...
+    rescue
+        ...
+    ensure
+        ...
+end
+</code></pre><p>И хотя ключевые слова отличаются, но общее поведение - очень похоже.
+(Хотя в Эрланге нет выражения retry !)</p>
+<h3 id="-">Сокращения</h3>
+<p>Некоторые части выражения try...catch могут быть опущены. Следующая
+запись</p>
+<pre><code>try F
+catch
+    ...
+end
+</code></pre><p>означает тоже самое что и:</p>
+<pre><code>try F of
+    Val -&gt; Val
+catch
+    ...
+end
+</code></pre><p>Аналогично, и раздел after может быть пропущен.</p>
+<h3 id="-try-catch">Программирование Идиом с try...catch</h3>
+<p>Когда мы разрабатываем приложение, мы часто хотим, чтобы код,
+перехватывающий ошибки, мог перехватить все ошибки, которые функция
+может сгенерировать.</p>
+<p>Вот пара функций для иллюстрации этого. Первая функция генерирует все
+возможные типы исключений:</p>
+<p>/файл try_test.erl/</p>
+<pre><code>generate_exception(1) -&gt; a;
+generate_exception(2) -&gt; throw(a);
+generate_exception(3) -&gt; exit(a);
+generate_exception(4) -&gt; {&#39;EXIT&#39;, a};
+generate_exception(5) -&gt; erlang:error(a).
+</code></pre><p>А теперь мы напишем вызывающую ее функцию внутри выражения try...catch.</p>
+<p>/файл try_test.erl/</p>
+<pre><code>demo1() -&gt;
+    [catcher(I) || I &lt;- [1,2,3,4,5]].
+
+catcher(N) -&gt;
+    try generate_exception(N) of
+        Val -&gt; {N, normal, Val}
+    catch
+        throw:X -&gt; {N, caught, thrown, X};
+        exit:X -&gt; {N, caught, exited, X};
+        error:X -&gt; {N, caught, error, X}
+    end.
+</code></pre><p>Запустив ее мы увидим следующее:</p>
+<pre><code>1&gt; try_test:demo1().
+[{1,normal,a},
+{2,caught,thrown,a},
+{3,caught,exited,a},
+{4,normal,{&#39;EXIT&#39;,a}},
+{5,caught,error,a}]
+</code></pre><p>Получается, что мы можем перехватить и обработать все формы исключений,
+которые может сгенерировать нам функция.</p>
+<h2 id="4-4-catch">4.4. catch</h2>
+<p>Другим способом перехватить исключение является использование примитива
+catch. Когда вы так перехватываете исключение, оно конвертируется в
+тьюпл, который описывает случившуюся ошибку. Чтобы продемонстрировать
+это, мы можем вызвать generate_exception внутри catch выражения:</p>
+<pre><code>demo2() -&gt;
+    [{I, (catch generate_exception(I))} || I &lt;- [1,2,3,4,5]].
+</code></pre><p>Запустив эту функцию, мы получим следующее:</p>
+<pre><code>2&gt; try_test:demo2().
+[{1,a},
+{2,a},
+{3,{&#39;EXIT&#39;,a}},
+{4,{&#39;EXIT&#39;,a}},
+{5,{&#39;EXIT&#39;,{a,[{try_test,generate_exception,1},
+{try_test,&#39;-demo2/0-fun-0-&#39;,1},
+{lists,map,2},
+{lists,map,2},
+{erl_eval,do_apply,5},
+{shell,exprs,6},
+{shell,eval_loop,3}]}}}]
+</code></pre><p>Если вы сравните это с результатом работы try...catch , то увидите, что
+мы утратили много информации для анализа причин возникшей проблемы.</p>
+<h2 id="4-5-">4.5. Улучшение сообщений об ошибках</h2>
+<p>Одним из способов использования функции erlang:error является улучшение
+информативности сообщений об ошибках. Приведем пример. Если мы вызовем
+math:sqrt(X) с отрицательным аргументом, то мы увидим следующее:</p>
+<pre><code>1&gt; math:sqrt(-1).
+exited: {badarith,[{math,sqrt,[-1]},
+{erl_eval,do_apply,5},
+{shell,exprs,6},
+{shell,eval_loop,3}]}
+</code></pre><p>Но мы можем написать обертку для этого, которая улучшит сообщение об
+ошибке:</p>
+<pre><code>sqrt(X) when X &lt; 0 -&gt;
+    erlang:error({squareRootNegativeArgument, X});
+sqrt(X) -&gt;
+    math:sqrt(X).
+
+2&gt; lib_misc:sqrt(-1).
+exited: {{squareRootNegativeArgument,-1},
+[{lib_misc,sqrt,1},
+{erl_eval,do_apply,5},
+{shell,exprs,6},
+{shell,eval_loop,3}]}
+</code></pre><h2 id="4-6-try-catch">4.6. Стиль программирования try...catch</h2>
+<p>Так как-же нам обрабатывать ошибке на практике. Это, естественно,
+зависит от ситуации....</p>
+<h2 id="-error">Код, часто возвращающий error</h2>
+<p>Если ваша функция не является гарантированно проходным случаем, то вам,
+вероятно, следует возвращать что-то вроде {ok, Value} или {error,
+Reason}, но помните, что это заставит всех вызывающих вашу функцию
+<em>что-то </em>сделать с возвращаемым значением. У вас будут, при этом, две
+альтернативы: либо вот так:</p>
+<pre><code>...
+case f(X) of
+    {ok, Val} -&gt;
+        do_some_thing_with(Val);
+    {error, Why} -&gt;
+        %% ... do something with the error ...
+end,
+...
+</code></pre><p>что обработает оба возвращаемых типа значений, или вот так:</p>
+<pre><code>...
+{ok, Val} = f(X),
+do_some_thing_with(Val);
+...
+</code></pre><p>что запустит исключение если функция f(X) вернет {error, ...} .</p>
+<h3 id="-">Код, где ошибки возможны, но редки</h3>
+<p>В этом случае типично написание кода, который ожидает и обрабатывает
+ошибки как в нижеследующем примере:</p>
+<pre><code>try my_func(X)
+catch
+throw:{thisError, X} -&gt; ...
+throw:{someOtherError, X} -&gt; ...
+end
+</code></pre><p>А код, который ловит ошибки, должен при этом иметь соответствующие ветки
+throw :</p>
+<pre><code>my_func(X) -&gt;
+case ... of
+    ...
+    ... -&gt;
+    ... throw({thisError, ...})
+    ... -&gt;
+    ... throw({someOtherError, ...})
+</code></pre><h2 id="4-7-">4.7. Перехват всех возможных исключений</h2>
+<p>Если мы хотим перехватить все возможные ошибки, мы можем использовать
+следующий тип выражения:</p>
+<pre><code>try Expr
+catch
+    _:_ -&gt;
+        ... Code to handle all exceptions ...
+end
+</code></pre><p>Если мы опустим тип исключения и напишем вот так:</p>
+<pre><code>try Expr
+catch
+    _ -&gt; ... Code to handle all exceptions ...
+end
+</code></pre><p>то мы <em>НЕ</em> перехватим все ошибки, потому что в этом случае типом
+исключений будет только throw, который действует по-умолчанию.</p>
+<h2 id="4-8-">4.8. Обработка ошибок в старом и новом стилях</h2>
+<p>Этот раздел предназначен только для Эрланг-ветеранов!</p>
+<p>try...catch это относительно новая конструкция, которая была введена для
+исправления дефектов механизма catch...throw. Если вы эрланговец старой
+закалки, который не читал его последней документации (типа меня), тогда
+вы автоматически пишете код наподобие вот такого:</p>
+<pre><code>case (catch foo(...)) of
+    {&#39;EXIT&#39;, Why} -&gt;
+        ...
+    Val -&gt;
+        ...
+end
+</code></pre><p>Обычно, это тоже корректно работает, но почти всегда лучше написать
+следующее:</p>
+<pre><code>try foo(...) of
+    Val -&gt; ...
+catch
+exit:
+    Why -&gt;
+    ...
+end
+</code></pre><p>Так что, вместо написания case (catch ...) of ..., пишите try ... of
+....</p>
+<h2 id="4-9-">4.9. Трассировка стека вызовов</h2>
+<p>Когда исключение перехвачено, мы можем получить текущий стек вызовов с
+помощью функции erlang:get_stacktrace(). Рассмотрим пример:</p>
+<pre><code>demo3() -&gt;
+    try
+        generate_exception(5)
+    catch
+        error:X -&gt;
+            {X, erlang:get_stacktrace()}
+    end.
+
+1&gt; try_test:demo3().
+{a,[{try_test,generate_exception,1},
+{try_test,demo3,0},
+{erl_eval,do_apply,5},
+{shell,exprs,6},
+{shell,eval_loop,3}]}
+</code></pre><p>Получаемая трассировка стека содержит список функций из стека, которым
+данная функция должна вернуть значение, если получится. Он почти
+совпадает с последовательностью вызовов функций, который привел нас к
+данной функции, но все вызовы с хвостовой рекурсией будут отсутствовать
+в этой трассировке (См. раздел 8.9 <em>Немного о хвостовой рекурсии</em>).</p>
+<p>Сточки зрения иправления ошибок в нашей программе (дебагинга) только
+первые несколько строчек представляют тут для нас интерес. Начало
+трассировки стека говорит нам о том, что система повалилась во время
+вычисления функции generate_exception (из модуля try_test) с одним
+аргументом. try_test:generate_exception/1 была вероятно вызвана
+try_test:demo3() (мы не можем быть в этом абсолютно уверены, потому что
+try_test:demo3() могла вызвать некоторую другую функцию, которая
+сделала вызов с хвостовой рекурсией try_test:generate_exception/1, и в
+этом случае трассировка стека не покажет нам записей о этой
+промежуточной функции).</p>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/03" title="Previous Post: Глава 3. Последовательное программирование" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 3. Последовательное программирование</a></li>
+  <li class="next"><a href="http://erlangbook.tk/05" title="Next Post: Глава 5. Расширенное последовательное программирование" class="navlinks-next">Глава 5. Расширенное последовательное программирование <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

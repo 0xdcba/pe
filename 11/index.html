@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, irc клиент, отправка сообщений, чат-сервер, чат сервер">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 11. Лёгкий IRC</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 11. Лёгкий IRC</h1>
+			<p>Вот и пришло время для приложения. До сих пор мы видели только разрозненные части. Мы видели как писать последовательный код, как порождать процессы, как регистрировать процессы и т.д. Теперь мы соберём все эти части в одно работающее целое.</p>
+<p>В этой главе мы создадим простую IRC-подобную программу. Мы не будем придерживаться настоящего IRC протокола. Вместо этого мы придумаем наш собственный совершенно другой и не совместимый ни с чем протокол. С точки зрения пользователя наша программа <em>является</em> реализацией IRC, хотя нижележащая реализация гораздо проще, чем это могло бы ожидаться, т. к. мы используем сообщения Эрланга как основу для межпроцессорных сообщений. Это полностью устраняет разбор сообщений и значительно упрощает дизайн.</p>
+<p>Наша программа является программой на <em>чистом</em> Эрланге, которая совершенно не использует библиотеки OTP и минимально использует стандартные библиотеки. Так что, к примеру, у неё полностью самодостаточная клиент-серверная архитектура и форма восстановления после ошибок, основанная на явном манипулировании связей. Причина неиспользования библиотек в том, что я хочу вносить вам на рассмотрение по одной концепции за раз и показывать, что мы можем достичь с одним языком и минимальным использованием библиотек. Мы будем писать код как набор компонентов. Каждый компонент прост, но вместе они работают достаточно сложно. Мы можем заставить большую часть сложностей убраться, используя библиотеки OTP, так что позднее в этой книге мы покажем более правильные способы организации кода, основанном на общий библиотеках OTP для построения деревьев клиент-серверов и наблюдения (супервизоров).</p>
+<p><img src="https://raw.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/11/img-11.1.png" alt="image"></p>
+<p><em>Рис.11. 1: Структура процесса</em></p>
+<p>Наше приложение построено из пяти компонентов. Структура этих компонентов показана на Рис.11. 1. Рисунок показывает три клиентских узла (предполагается, что они на других машинах) и один серверный узел (тоже на другой машине). Эти компоненты выполняют следующие функции:</p>
+<p><em>Интерфейс с пользователем</em> — это графическое приложение, которое используется для отправки сообщений и отображения полученных сообщений. Сообщения отправляются чат-клиенту.</p>
+<p><em>Чат-клиент</em> («C» на рисунке) — разбирается с сообщениями от пользовательского приложения и отправляет их к контроллеру группы для текущей группы. Принимает сообщения от контроллера группы и отправляет их к пользовательскому приложению.</p>
+<p><em>Контроллер группы</em> («G» на рисунке) — управляет одной чат-группой. Если контроллеру посылается сообщение, то он рассылает это сообщение всем участникам в данной группе. Он отслеживает новых участников, которые присоединились к группе и участников, которые покинули группу. Контроллер завершается, если в группе не осталось участников.</p>
+<p><em>Чат-сервер</em> («S» на рисунке) — отслеживает контроллеров группы. Чат-сервер нужен только когда новый участник пытается присоединиться к группе. Чат-сервер существует в единственном экземпляре, в то время как контроллеры групп создаются для каждой активной группы.</p>
+<p><em>Посредник</em> («M» на рисунке) — обеспечивает транспортировку данных в системе. Если процесс C посылает сообщение к M, оно попадёт к G (см. Рис.11. 1). Процесс M скрывает низкоуровневый интерфейс сокетов между двумя машинами. Главным образом процесс M прячет физическую границу между машинами за какой-то абстракцией. Это значит, что на основе передачи сообщений Эрланга можно построить целое приложение и не заботиться о подробностях нижележащей инфраструктуры связи.</p>
+<h2 id="11-1-">11.1 Диаграммы последовательности сообщений</h2>
+<p>Если у нас много параллельных процессов, то очень легко потерять нить происходящего. Чтобы помочь нам понять, что происходит, мы можем нарисовать диаграмму последовательности сообщений (MSD), которая показывает взаимодействие между различными процессами.</p>
+<p><img src="https://raw.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/11/img-11.2.png" alt="image"></p>
+<p><em>Рис.11. 2: Прохождение сообщений, участвующих в передаче текстового
+сообщения</em></p>
+<p>Диаграмма последовательности сообщений на Рис.11. 2 показывает последовательность сообщений, которые пересылаются, когда пользователь напечатает строку в поле ввода. Это приводит к отправке сообщения к чат-контроллеру (C), за которым следует сообщение к одному из посредников (M1), затем через М2 к контроллеру группы (G). На этапе между посредниками происходит двоичное кодирование сообщений Эрланга.</p>
+<p>MSD даёт хорошее представление того, что происходит. Если вы будете глазеть на MSD и на код программы достаточно долго, то вы сможете убедить себя в том, что этот код реализует именно ту последовательность передачи сообщений, которая изображена на диаграмме.</p>
+<p>Когда я проектирую программу наподобие чата, я часто рисую множество MSD диаграмм — это помогает мне думать о том, что происходит. Я не большой любитель графических методов проектирования, но MDS диаграммы полезны для отображения того, что происходит в ряде параллельных процессов, которые обмениваются сообщениями для решения определённой проблемы.</p>
+<p>А сейчас посмотрим на индивидуальные компоненты.</p>
+<h2 id="11-2-">11.2 Пользовательский интерфейс</h2>
+<p><img src="https://raw.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/11/img-11.3.png" alt="image"></p>
+<p><em>Рис.11. 3: Виджет ввода-вывода</em></p>
+<hr>
+<p>Пользовательский интерфейс построен на базе простого виджета ввода-вывода. Этот виджет показан на Рис.11. 3. Код этого виджета достаточно длинный и в основном касается доступа к оконной системе посредством стандартной библиотеки gs. Т. к. мы пока не хотим прыгать в
+эту кроличью нору, то мы не покажем здесь соответствующий код (хотя вы найдёте этот код, начиная со страницы <em>17</em>). Интерфейс у виджета ввода-вывода следующий:</p>
+<pre><code>@spec io_widget:start(Pid) -&gt; Widget
+</code></pre><p>Создаёт новый виджет ввода-вывода. Возвращает <code>Widget</code>, который является <code>PID</code>, который может использоваться для общения с виджетом. Когда пользователь печатает что-либо в поле ввода виджета процессу, который вызвал эту функцию посылаются сообщения вида <code>{Widget, State, Parse}</code>. <code>State</code> — это переменная состояния, сохранённая в виджете, которая может устанавливаться пользователем. <code>Parse</code> — это результат разбора строки ввода пользовательским парсером.</p>
+<pre><code>@spec io_widget:set_title(Widget, Str)
+</code></pre><p>Устанавливает заголовок в виджете.</p>
+<pre><code>@spec io_widget:set_state(Widget, State)
+</code></pre><p>Устанавливает состояние виджета.</p>
+<pre><code>@spec io_widget:insert_str(Widget, Str)
+</code></pre><p>Вставляет строку в основную область виджета.</p>
+<pre><code>@spec io_widget:set_handler(Widget, Fun)
+</code></pre><p>Устанавливает парсер виджета в <code>Fun</code> (см. далее).</p>
+<p>Виджет ввода-вывода может генерировать следующие сообщения:</p>
+<pre><code>{Widget, State, Parse}
+</code></pre><p>Это сообщение отправляется, когда пользователь вводит строку в нижней области команд виджета. <code>Parse</code> — это результат разбора этой строки парсером, связанным с данным виджетом.</p>
+<pre><code>{Widget, destroyed}
+</code></pre><p>Это сообщение отправляется, когда пользователь разрушает виджет посредством закрытия окна.</p>
+<p>В общем, виджет ввода-вывода — это программируемая штучка. С ним можно связать парсер, который будет использоваться для разбора всех сообщений, которые вводятся в поле ввода виджета. Разбор делается вызовом функции <code>Parse(Str)</code>. Эта функция может быть установлена вызовом <code>set_handler(Widget, Parse)</code>.</p>
+<p>Парсер по-умолчанию — это такая функция:</p>
+<pre><code>Parse(Str) -&gt; Str end.
+</code></pre><h2 id="11-3-">11.3 Клиентская часть</h2>
+<p>Клиентская часть программы чата состоит из трёх процессов: виджет ввода-вывода (о котором мы уже говорили), клиент чата (который организует взаимодействие между виджетом и посредником) и процесс посредника. В этой части мы сосредоточимся на клиенте чата.</p>
+<h3 id="-">Клиент чата</h3>
+<p>Мы запускаем чат-клиент вызовом <code>start/0</code>:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>start() -&gt;
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;joe&quot; ).
+</code></pre><p>Он пытается подсоединиться к <code>localhost</code> на порт <code>2223</code> (это жестко зашито в код для тестовых целей). Функция <code>connect/5</code> просто создаёт параллельный процесс, вызывая <code>hander/5</code>. А вот обработчику приходится выполнять несколько задач:</p>
+<ul>
+<li>он делает себя системным процессом, так что теперь он может перехватывать сигналы выхода</li>
+<li>он создаёт виджет ввода-вывода и устанавливает подсказку и заголовок этого виджета</li>
+<li>он порождает процесс соединения (который пытается соединиться с сервером)</li>
+<li>в конце он ждёт события соединения в <code>disconnected/2</code> (прим. перев.: «Синее, а не бурое! А по описанию -- бурое, а не синее!..» (С) АБС)</li>
+</ul>
+<p>Код для него:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>connect(Host, Port, HostPsw, Group, Nick) -&gt;
+    spawn(fun() -&gt; handler(Host, Port, HostPsw, Group, Nick) end).
+
+handler(Host, Port, HostPsw, Group, Nick) -&gt;
+    process_flag(trap_exit, true),
+    Widget = io_widget:start(self()),
+    set_title(Widget, Nick),
+    set_state(Widget, Nick),
+    set_prompt(Widget, [Nick, &quot; &gt; &quot; ]),
+    set_handler(Widget, fun parse_command/1),
+    start_connector(Host, Port, HostPsw),
+    disconnected(Widget, Group, Nick).
+</code></pre><p>В отключенном состоянии процесс либо получит сообщение <code>{connected, MM}</code>(2), после чего он посылает сообщение <code>login</code> к серверу и ждёт ответа на логин, либо виджет может быть разрушен, что приводит к всеобщему завершению. Соединяющийся процесс периодически шлёт сообщения о состоянии к чат-клиенту. Эти сообщения сразу же пересылаются к виджету ввода-вывода для показа.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>disconnected(Widget, Group, Nick) -&gt;
+    receive
+        {connected, MM} -&gt;
+            insert_str(Widget, &quot;connected to server\\nsending data\\n&quot; ),
+            MM ! {login, Group, Nick},
+            wait_login_response(Widget, MM);
+        {Widget, destroyed} -&gt;
+            exit(died);
+        {status, S} -&gt;
+            insert_str(Widget, to_str(S)),
+            disconnected(Widget, Group, Nick);
+        Other -&gt;
+            io:format(&quot;chat_client disconnected unexpected:\~p\~n&quot; ,[Other]),
+            disconnected(Widget, Group, Nick)
+    end.
+</code></pre><p>Сообщение <code>{connected, MM}</code> очевидно должно придти от соединяющегося процесса, который был создан вызовом <code>start_connection(Host, Port, HostPsw)</code>. Этот вызов создаёт параллельный процесс, который в свою очередь периодически пытается соединиться с IRC сервером.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>start_connector(Host, Port, Pwd) -&gt;
+    S = self(),
+    spawn_link(fun() -&gt; try_to_connect(S, Host, Port, Pwd) end).
+
+try_to_connect(Parent, Host, Port, Pwd) -&gt;
+    %% Parent is the Pid of the process that spawned this process
+    case lib_chan:connect(Host, Port, chat, Pwd, []) of
+        {error, _Why} -&gt;
+            Parent ! {status, {cannot, connect, Host, Port}},
+            sleep(2000),
+            try_to_connect(Parent, Host, Port, Pwd);
+        {ok, MM} -&gt;
+            lib_chan_mm:controller(MM, Parent),
+            Parent ! {connected, MM},
+            exit(connectorFinished)
+    end.
+</code></pre><p><code>try_to_connect</code> зацикливается навечно, пытаясь каждые две секунды подключиться к серверу. Если подключиться не удаётся, то он посылает сообщение о состоянии к чат-клиенту.</p>
+<p><em>Замечание:</em> в <code>start_connection</code> мы написали следующее:</p>
+<pre><code>S = self(),
+spawn_link(fun() -&gt; try_to_connect(S, ...) end)
+</code></pre><p><em>Это не то же самое, что и здесь:</em></p>
+<pre><code>spawn_link(fun() -&gt; try_to_connect(self(), ...) end)
+</code></pre><p>Причина в том, что в первом фрагменте кода <code>self()</code> выполняется внутри родительского процесса. Во втором куске кода <code>self()</code> выполняется внутри порождённой функции, так что он возвращает идентификатор порождённого процесса, а не <code>PID</code> текущего процесса, как вы могли бы подумать. Это довольно распространённая причина для ошибок (и непонимания).</p>
+<p>Если соединение установлено, то он посылает сообщение <code>{connected, MM}</code> к чат-клиенту. По прибытии этого сообщения чат-клиент посылает сообщение для логина к серверу (оба этих события происходят в <code>disconnected/2</code>) и ждёт ответа в <code>wait_login_response/2</code>:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>wait_login_response(Widget, MM) -&gt;
+    receive
+        {MM, ack} -&gt;
+            active(Widget, MM);
+        Other -&gt;
+            io:format(&quot;chat_client login unexpected:\~p\~n&quot; ,[Other]),
+            wait_login_response(Widget, MM)
+    end.
+</code></pre><p>Если всё идёт по плану, то процесс должен получить подтверждающее сообщение <code>ack</code>. (В нашем случае это единственно возможный ответ, т. к. пароль точно был правильным). После получения подтверждения эта функция вызывает <code>active/2</code>:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>active(Widget, MM) -&gt;
+    receive
+        {Widget, Nick, Str} -&gt;
+            MM ! {relay, Nick, Str},
+            active(Widget, MM);
+        {MM,{msg,From,Pid,Str}} -&gt;
+            insert_str(Widget, [From,&quot;@&quot; ,pid_to_list(Pid),&quot; &quot; , Str, &quot;\\n&quot; ]),
+            active(Widget, MM);
+        {&#39;EXIT&#39;,Widget,windowDestroyed} -&gt;
+            MM ! close;
+        {close, MM} -&gt;
+            exit(serverDied);
+        Other -&gt;
+            io:format(&quot;chat_client active unexpected:\~p\~n&quot; ,[Other]),
+            active(Widget, MM)
+    end.
+</code></pre><p><code>active/2</code> просто шлёт сообщения от виджета к группе (и наоборот) и отслеживает соединение с группой.</p>
+<p>За исключением некоторых объявлений модулей и простейших процедур форматирования и разбора это завершает чат-клиент.</p>
+<p>Полный код чат-клиента приведён на стр. <em>__</em></p>
+<h2 id="11-4-">11.4 Серверная часть</h2>
+<p>Серверная часть программы сложнее, чем клиентская. Для каждого клиента чата есть соответствующий чат-контроллер, который организует взаимодействие чат-клиента с чат-сервером. Есть единственный чат-сервер, который знает обо всех сеансах чата в данный момент и ещё есть некоторое количество менеджеров групп (по одному на чат-группу), которые управляют отдельными чат-группами.</p>
+<h3 id="-">Чат-контроллер</h3>
+<p>Чат-контроллер — это дополнение (plug-in) для <code>lib_chan</code>, дистрибутивному набору, основанному на сокетах. Мы встречали его в главе 10.5, <code>lib_chan</code>, на стр. <em>__</em>. <code>lib_chan</code> нуждается в конфигурационном файле и модуле дополнении.</p>
+<p>Конфигурационный файл для системы чата следующий:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat.conf">socket_dist/chat.conf</a></p>
+<pre><code>{port, 2223}.
+{service, chat, password,&quot;AsDT67aQ&quot;,mfa,mod_chat_controller,start,[]}.
+</code></pre><p>Если вы посмотрите назад на код <code>chat_client.erl</code>, вы увидите, что номер порта, имя сервиса и пароль согласуются с информацией из конфигурационного файла.</p>
+<p>Модуль чат-контроллера очень прост:</p>
+<p>Скачать <a href="http://http://media.pragprog.com/titles/jaerlang/code/socket_dist/mod_chat_controller.erl">socket_dist/mod_chat_controller.erl</a></p>
+<pre><code>-module(mod_chat_controller).
+-export([start/3]).
+-import(lib_chan_mm, [send/2]).
+
+start(MM, _, _) -&gt;
+    process_flag(trap_exit, true),
+    io:format(&quot;mod_chat_controller off we go ...\~p\~n&quot; ,[MM]),
+    loop(MM).
+
+loop(MM) -&gt;
+    receive
+        {chan, MM, Msg} -&gt;
+            chat_server ! {mm, MM, Msg},
+            loop(MM);
+        {&#39;EXIT&#39;, MM, _Why} -&gt;
+            chat_server ! {mm_closed, MM};
+        Other -&gt;
+            io:format(&quot;mod_chat_controller unexpected message =\~p (MM=\~p)\~n&quot; ,
+            [Other, MM]),
+            loop(MM)
+    end.
+</code></pre><p>Этот код будет принимать только два сообщения. Когда клиент соединяется он получит произвольное сообщение и просто отправит его к чат-серверу. С другой стороны, если сеанс завершается по какой-либо причине, он получит сообщение о выходе и затем скажет чат-серверу, что клиент умер.</p>
+<h3 id="-">Чат-сервер</h3>
+<p>Чат-сервер — это зарегистрированный процесс, называемый (что неудивительно) <code>chat_server</code>. Вызов <code>chat_server:start/0</code> запускает и регистрирует сервер, а он запускает <code>lib_chan</code>.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_server.erl">socket_dist/chat_server.erl</a></p>
+<pre><code>start() -&gt;
+    start_server(),
+    lib_chan:start_server(&quot;chat.conf&quot; ).
+
+start_server() -&gt;
+    register(chat_server,
+    spawn(fun() -&gt;
+                process_flag(trap_exit, true),
+                Val = (catch server_loop([])),
+                io:format(&quot;Server terminated with:\~p\~n&quot; ,[Val])
+          end)).
+</code></pre><p>Серверный цикл прост. Он ждёт сообщения <code>{login, Group, Nick}</code>(3) от посредника с <code>PID</code>, равным <code>Channel</code>. Если есть контроллер чат-группы для этой группы, то он просто посылает сообщение о логине к контроллеру группы, а иначе он запускает нового контроллера группы.</p>
+<p>Чат-сервер — это единственный процесс, который знает <code>PID</code>-ы всех контроллеров групп, так что, когда делается новое соединение к системе, к чат-серверу приходит запрос на поиск идентификатора процесса контроллера группы.</p>
+<p>Сам по себе сервер прост:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_server.erl">socket_dist/chat_server.erl</a></p>
+<pre><code>server_loop(L) -&gt;
+    receive
+        {mm, Channel, {login, Group, Nick}} -&gt;
+            case lookup(Group, L) of
+                {ok, Pid} -&gt;
+                    Pid ! {login, Channel, Nick},
+                    server_loop(L);
+                error -&gt;
+                    Pid = spawn_link(fun() -&gt;
+                                        chat_group:start(Channel, Nick)
+                                      end),
+                    server_loop([{Group,Pid}|L])
+            end;
+        {mm_closed, _} -&gt;
+            server_loop(L);
+        {&#39;EXIT&#39;, Pid, allGone} -&gt;
+            L1 = remove_group(Pid, L),
+            server_loop(L1);
+        Msg -&gt;
+            io:format(&quot;Server received Msg=\~p\~n&quot;, [Msg]),
+        server_loop(L)
+end.
+</code></pre><p>Код для манипуляций списком групп включает в себя несколько простых подпрограмм для обработки списков:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_server.erl">socket_dist/chat_server.erl</a></p>
+<pre><code>lookup(G, [{G,Pid}|_])    -&gt; {ok, Pid};
+lookup(G, [_|T])        -&gt; lookup(G, T);
+lookup(_,[])            -&gt; error.
+
+remove_group(Pid, [{G,Pid}|T])    -&gt; io:format(&quot;\~p removed\~n&quot; ,[G]), T;
+remove_group(Pid, [H|T])        -&gt; [H|remove_group(Pid, T)];
+remove_group(_, [])                -&gt; [].
+</code></pre><h3 id="-">Менеджер группы</h3>
+<p>К текущему моменту всё, что осталось — это менеджер группы. Важнейшая часть этого — диспетчер.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_group.erl">socket_dist/chat_group.erl</a></p>
+<pre><code>group_controller([]) -&gt;
+    exit(allGone);
+group_controller(L) -&gt;
+    receive
+        {C, {relay, Nick, Str}} -&gt;
+            foreach(fun({Pid,_}) -&gt; Pid ! {msg, Nick, C, Str} end, L),
+            group_controller(L);
+        {login, C, Nick} -&gt;
+            controller(C, self()),
+            C ! ack,
+            self() ! {C, {relay, Nick, &quot;I&#39;m joining the group&quot; }},
+            group_controller([{C,Nick}|L]);
+        {close,C} -&gt;
+            {Nick, L1} = delete(C, L, []),
+            self() ! {C, {relay, Nick, &quot;I&#39;m leaving the group&quot; }},
+            group_controller(L1);
+        Any -&gt;
+            io:format(&quot;group controller received Msg=\~p\~n&quot; , [Any]),
+            group_controller(L)
+    end.
+</code></pre><p>Аргумент <code>L</code> в <code>group_controller(L)</code> — это список имён и идентификаторов процессов посредников <code>{Pid, Nick}</code>.</p>
+<p>Когда менеджер группы получает сообщение <code>{relay, Nick, Str}</code>, он просто рассылает его всем процессам в группе. Если приходит сообщение <code>{login, C, Nick}</code>, он добавляет кортеж <code>{C, Nick}</code> в список рассылки. <em>Важно</em> упомянуть вызов <code>lib_chan_mm:controller/2</code>. Этот вызов устанавливает
+управляющий процесс посредника в контроллер группы, что означает, что <em>все сообщения к сокету, управляемому посредником, будут посланы к контроллеру группы</em> — это, вероятно,  главная часть для понимания — как работает весь этот код.</p>
+<p>Всё, что остаётся — это код, который запускает сервер группы:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_group.erl">socket_dist/chat_group.erl</a></p>
+<pre><code>-module(chat_group).
+-import(lib_chan_mm, [send/2, controller/2]).
+-import(lists, [foreach/2, reverse/2]).
+-export([start/2]).
+
+start(C, Nick) -&gt;
+    process_flag(trap_exit, true),
+    controller(C, self()),
+    C ! ack,
+    self() ! {C, {relay, Nick, &quot;I&#39;m starting the group&quot; }},
+    group_controller([{C,Nick}]).
+</code></pre><p>и функция <code>delete/3</code>, вызываемая из цикла диспетчера процесса</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_group.erl">socket_dist/chat_group.erl</a></p>
+<pre><code>delete(Pid, [{Pid,Nick}|T], L)    -&gt; {Nick, reverse(T, L)};
+delete(Pid, [H|T], L)            -&gt; delete(Pid, T, [H|L]);
+delete(_, [], L)                -&gt; {&quot;????&quot; , L}.
+</code></pre><h2 id="11-5-">11.5 Запуск приложения</h2>
+<p>Приложение целиком располагается в каталоге <code>pathto/code/socket_dist</code>. Оно также использует некоторые библиотечные модули из каталога <code>pathto/code</code>.</p>
+<p>Для запуска приложения получите исходные коды веб-сайта этой книги и распакуйте их в какой-нибудь каталог. (Здесь мы предполагаем, что это каталог <code>/home/joe/erlbook</code>). Откройте окно терминала и выполните следующие команды:</p>
+<pre><code>$ cd /home/joe/erlbook/code
+/home/joe/erlbook/code $ make
+...
+/home/joe/erlbook/code $ cd socket_dist
+/home/joe/erlbook/code/socket_dist $ make chat_server
+...
+</code></pre><p>Это запустит чат-сервер. А теперь нам надо открыть другое терминальное окно и запустить тест клиента:</p>
+<pre><code>$ cd /home/joe/erlbook/code/socket_dist
+/home/joe/erlbook/code/socket_dist $ make chat_client
+...
+</code></pre><p>Запуск make <code>chat_client</code> выполняет функцию <code>chat_client:test()</code>. Это на самом деле создаёт четыре окна, которые подключаются к тестовой группе, названной «general». На Рис.11. 4 мы можем увидеть снимок экрана, показывающий как выглядит система после выдачи этих команд.</p>
+<p><img src="https://raw.github.com/dyp2000/Russian-Armstrong-Erlang/master/ru/11/img-11.4.png" alt="image"></p>
+<p><em>Рис.11. 4: Снимок экрана, показывающий четыре окна, подключенные к одной группе</em></p>
+<p>Для развёртывания системы в Интернете всё, что нам надо сделать — это поменять пароль и порт на что-нибудь подходящее и разрешить входящие соединения на порт, который мы выбрали.</p>
+<h2 id="11-6-">11.6 Исходные коды программы чата</h2>
+<p>Итак, мы завершили описание программы чата. При описании программы мы разбили её на несколько маленьких фрагментов и опустили некоторую часть кода. Этот раздел содержит весь код в одном месте, что облегчает его чтение. Если у вас есть трудности с пониманием, что делает та или иная часть кода, обратитесь к описанию, изложенному ранее в этой главе.</p>
+<h3 id="-">Чат-клиент</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_client.erl">socket_dist/chat_client.erl</a></p>
+<pre><code>-module(chat_client).
+
+-import(io_widget,
+        [get_state/1, insert_str/2, set_prompt/2, set_state/2,
+         set_title/2, set_handler/2, update_state/3]).
+
+-export([start/0, test/0, connect/5]).
+
+start() -&gt;
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;joe&quot; ).
+
+test() -&gt;
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;joe&quot; ),
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;jane&quot; ),
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;jim&quot; ),
+    connect(&quot;localhost&quot; , 2223, &quot;AsDT67aQ&quot; , &quot;general&quot; , &quot;sue&quot; ).
+
+connect(Host, Port, HostPsw, Group, Nick) -&gt;
+    spawn(fun() -&gt; handler(Host, Port, HostPsw, Group, Nick) end).
+
+handler(Host, Port, HostPsw, Group, Nick) -&gt;
+    process_flag(trap_exit, true),
+    Widget = io_widget:start(self()),
+    set_title(Widget, Nick),
+    set_state(Widget, Nick),
+    set_prompt(Widget, [Nick, &quot; &gt; &quot; ]),
+    set_handler(Widget, fun parse_command/1),
+    start_connector(Host, Port, HostPsw),
+    disconnected(Widget, Group, Nick).
+
+disconnected(Widget, Group, Nick) -&gt;
+    receive
+        {connected, MM} -&gt;
+            insert_str(Widget, &quot;connected to server\\nsending data\\n&quot; ),
+            MM ! {login, Group, Nick},
+            wait_login_response(Widget, MM);
+        {Widget, destroyed} -&gt;
+            exit(died);
+        {status, S} -&gt;
+            insert_str(Widget, to_str(S)),
+            disconnected(Widget, Group, Nick);
+        Other -&gt;
+            io:format(&quot;chat_client disconnected unexpected:\~p\~n&quot; ,[Other]),
+            disconnected(Widget, Group, Nick)
+    end.
+
+wait_login_response(Widget, MM) -&gt;
+    receive
+        {MM, ack} -&gt;
+            active(Widget, MM);
+        Other -&gt;
+            io:format(&quot;chat_client login unexpected:\~p\~n&quot; ,[Other]),
+            wait_login_response(Widget, MM)
+    end.
+
+active(Widget, MM) -&gt;
+    receive
+        {Widget, Nick, Str} -&gt;
+            MM ! {relay, Nick, Str},
+            active(Widget, MM);
+        {MM,{msg,From,Pid,Str}} -&gt;
+            insert_str(Widget, [From,&quot;@&quot; ,pid_to_list(Pid),&quot; &quot; , Str, &quot;\\n&quot; ]),
+            active(Widget, MM);
+        {&#39;EXIT&#39;,Widget,windowDestroyed} -&gt;
+            MM ! close;
+        {close, MM} -&gt;
+            exit(serverDied);
+        Other -&gt;
+            io:format(&quot;chat_client active unexpected:\~p\~n&quot; ,[Other]),
+            active(Widget, MM)
+    end.
+
+start_connector(Host, Port, Pwd) -&gt;
+    S = self(),
+    spawn_link(fun() -&gt; try_to_connect(S, Host, Port, Pwd) end).
+    try_to_connect(Parent, Host, Port, Pwd) -&gt;
+    %% Parent is the Pid of the process that spawned this process
+    case lib_chan:connect(Host, Port, chat, Pwd, []) of
+        {error, _Why} -&gt;
+            Parent ! {status, {cannot, connect, Host, Port}},
+            sleep(2000),
+            try_to_connect(Parent, Host, Port, Pwd);
+        {ok, MM} -&gt;
+            lib_chan_mm:controller(MM, Parent),
+            Parent ! {connected, MM},
+            exit(connectorFinished)
+    end.
+
+sleep(T) -&gt;
+    receive
+        after T -&gt; true
+    end.
+
+to_str(Term) -&gt;
+    io_lib:format(&quot;\~p\~n&quot; ,[Term]).
+
+parse_command(Str) -&gt; skip_to_gt(Str).
+
+skip_to_gt(&quot;&gt;&quot; ++ T)    -&gt; T;
+skip_to_gt([_|T])        -&gt; skip_to_gt(T);
+skip_to_gt([])            -&gt; exit(&quot;no &gt;&quot;).
+</code></pre><h3 id="-lib_chan">Конфигурация lib_chan</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat.conf">socket_dist/chat.conf</a></p>
+<pre><code>{port, 2223}.
+{service, chat, password,&quot;AsDT67aQ&quot;,mfa,mod_chat_controller,start,[]}.
+</code></pre><h3 id="-">Чат-контроллер</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/mod_chat_controller.erl">socket_dist/mod_chat_controller.erl</a></p>
+<pre><code>-module(mod_chat_controller).
+-export([start/3]).
+-import(lib_chan_mm, [send/2]).
+
+start(MM, _, _) -&gt;
+    process_flag(trap_exit, true),
+    io:format(&quot;mod_chat_controller off we go ...\~p\~n&quot; ,[MM]),
+    loop(MM).
+
+loop(MM) -&gt;
+    receive
+        {chan, MM, Msg} -&gt;
+            chat_server ! {mm, MM, Msg},
+            loop(MM);
+        {&#39;EXIT&#39;, MM, _Why} -&gt;
+            chat_server ! {mm_closed, MM};
+        Other -&gt;
+            io:format(&quot;mod_chat_controller unexpected message =\~p (MM=\~p)\~n&quot;,
+            [Other, MM]),
+            loop(MM)
+    end.
+</code></pre><h3 id="-">Чат-сервер</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_server.erl">socket_dist/chat_server.erl</a></p>
+<pre><code>-module(chat_server).
+-import(lib_chan_mm, [send/2, controller/2]).
+-import(lists, [delete/2, foreach/2, map/2, member/2,reverse/2]).
+
+-compile(export_all).
+
+start() -&gt;
+    start_server(),
+    lib_chan:start_server(&quot;chat.conf&quot; ).
+
+start_server() -&gt;
+    register(chat_server,
+    spawn(fun() -&gt;
+                process_flag(trap_exit, true),
+                Val = (catch server_loop([])),
+                io:format(&quot;Server terminated with:\~p\~n&quot; ,[Val])
+          end)).
+
+server_loop(L) -&gt;
+    receive
+        {mm, Channel, {login, Group, Nick}} -&gt;
+            case lookup(Group, L) of
+                {ok, Pid} -&gt;
+                    Pid ! {login, Channel, Nick},
+                    server_loop(L);
+                error -&gt;
+                    Pid = spawn_link(fun() -&gt;
+                        chat_group:start(Channel, Nick)
+                    end),
+                    server_loop([{Group,Pid}|L])
+            end;
+        {mm_closed, _} -&gt;
+            server_loop(L);
+        {&#39;EXIT&#39;, Pid, allGone} -&gt;
+            L1 = remove_group(Pid, L),
+            server_loop(L1);
+        Msg -&gt;
+            io:format(&quot;Server received Msg=\~p\~n&quot;, [Msg]),
+            server_loop(L)
+    end.
+
+lookup(G, [{G,Pid}|_])    -&gt; {ok, Pid};
+lookup(G, [_|T])        -&gt; lookup(G, T);
+lookup(_,[])            -&gt; error.
+
+remove_group(Pid, [{G,Pid}|T])    -&gt; io:format(&quot;\~p removed\~n&quot; ,[G]), T;
+remove_group(Pid, [H|T])        -&gt; [H|remove_group(Pid, T)];
+remove_group(_, [])                -&gt; [].
+</code></pre><h3 id="-">Чат-группы</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/chat_group.erl">socket_dist/chat_group.erl</a></p>
+<pre><code>-module(chat_group).
+-import(lib_chan_mm, [send/2, controller/2]).
+-import(lists, [foreach/2, reverse/2]).
+
+-export([start/2]).
+
+start(C, Nick) -&gt;
+    process_flag(trap_exit, true),
+    controller(C, self()),
+    C ! ack,
+    self() ! {C, {relay, Nick, &quot;I&#39;m starting the group&quot; }},
+    group_controller([{C,Nick}]).
+
+delete(Pid, [{Pid,Nick}|T], L)    -&gt; {Nick, reverse(T, L)};
+delete(Pid, [H|T], L)            -&gt; delete(Pid, T, [H|L]);
+delete(_, [], L)                -&gt; {&quot;????&quot; , L}.
+
+group_controller([]) -&gt;
+    exit(allGone);
+group_controller(L) -&gt;
+    receive
+        {C, {relay, Nick, Str}} -&gt;
+            foreach(fun({Pid,_}) -&gt; Pid ! {msg, Nick, C, Str} end, L),
+            group_controller(L);
+        {login, C, Nick} -&gt;
+            controller(C, self()),
+            C ! ack,
+            self() ! {C, {relay, Nick, &quot;I&#39;m joining the group&quot; }},
+            group_controller([{C,Nick}|L]);
+        {close,C} -&gt;
+            {Nick, L1} = delete(C, L, []),
+            self() ! {C, {relay, Nick, &quot;I&#39;m leaving the group&quot; }},
+            group_controller(L1);
+        Any -&gt;
+            io:format(&quot;group controller received Msg=\~p\~n&quot; , [Any]),
+            group_controller(L)
+    end.
+</code></pre><h3 id="-">Виджет ввода-вывода</h3>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/socket_dist/io_widget.erl">socket_dist/io_widget.erl</a></p>
+<pre><code>-module(io_widget).
+
+-export([get_state/1,
+          start/1, test/0,
+         set_handler/2,
+         set_prompt/2,
+         set_state/2,
+         set_title/2, insert_str/2, update_state/3]).
+
+start(Pid) -&gt;
+    gs:start(),
+    spawn_link(fun() -&gt; widget(Pid) end).
+
+get_state(Pid)            -&gt; rpc(Pid, get_state).
+set_title(Pid, Str)        -&gt; Pid ! {title, Str}.
+set_handler(Pid, Fun)    -&gt; Pid ! {handler, Fun}.
+set_prompt(Pid, Str)    -&gt; Pid ! {prompt, Str}.
+set_state(Pid, State)    -&gt; Pid ! {state, State}.
+insert_str(Pid, Str)    -&gt; Pid ! {insert, Str}.
+update_state(Pid, N, X)    -&gt; Pid ! {updateState, N, X}.
+
+rpc(Pid, Q) -&gt;
+    Pid ! {self(), Q},
+    receive
+        {Pid, R} -&gt;
+            R
+    end.
+
+widget(Pid) -&gt;
+    Size = [{width,500},{height,200}],
+    Win = gs:window(gs:start(),
+                    [{map,true},{configure,true},{title,&quot;window&quot; }|Size]),
+    gs:frame(packer, Win,[{packer_x,    [{stretch,1,500}]},
+                           {packer_y,    [{stretch,10,120,100},
+                                         {stretch,1,15,15}]}]),
+    gs:create(editor,editor,packer,    [{pack_x,1},{pack_y,1},{vscroll,right}]),
+    gs:create(entry, entry, packer,    [{pack_x,1},{pack_y,2},{keypress,true}]),
+    gs:config(packer, Size),
+    Prompt = &quot; &gt; &quot;,
+    State = nil,
+    gs:config(entry, {insert,{0,Prompt}}),
+    loop(Win, Pid, Prompt, State, fun parse/1).
+
+loop(Win, Pid, Prompt, State, Parse) -&gt;
+        receive
+            {From, get_state} -&gt;
+                From ! {self(), State},
+                loop(Win, Pid, Prompt, State, Parse);
+            {handler, Fun} -&gt;
+                loop(Win, Pid, Prompt, State, Fun);
+            {prompt, Str} -&gt;
+                %% this clobbers the line being input ...
+                %% this could be fixed - hint
+                gs:config(entry, {delete,{0,last}}),
+                gs:config(entry, {insert,{0,Str}}),
+                loop(Win, Pid, Str, State, Parse);
+            {state, S} -&gt;
+                loop(Win, Pid, Prompt, S, Parse);
+            {title, Str} -&gt;
+                gs:config(Win, [{title, Str}]),
+                loop(Win, Pid, Prompt, State, Parse);
+            {insert, Str} -&gt;
+                gs:config(editor, {insert,{&#39;end&#39;,Str}}),
+                scroll_to_show_last_line(),
+                loop(Win, Pid, Prompt, State, Parse);
+            {updateState, N, X} -&gt;
+                io:format(&quot;setelemtn N=\~p X=\~p Satte=\~p\~n&quot; ,[N,X,State]),
+                State1 = setelement(N, State, X),
+                loop(Win, Pid, Prompt, State1, Parse);
+            {gs,_,destroy,_,_} -&gt;
+                io:format(&quot;Destroyed\~n&quot; ,[]),
+                exit(windowDestroyed);
+            {gs, entry,keypress,_,[&#39;Return&#39;|_]} -&gt;
+                Text = gs:read(entry, text),
+                %% io:format(&quot;Read:\~p\~n&quot;,[Text]),
+                gs:config(entry, {delete,{0,last}}),
+                gs:config(entry, {insert,{0,Prompt}}),
+                try Parse(Text) of
+                    Term -&gt;
+                        Pid ! {self(), State, Term}
+                catch
+                    _:_ -&gt;
+                        self() ! {insert, &quot;** bad input**\\n** /h for help\\n&quot; }
+                end,
+                loop(Win, Pid, Prompt, State, Parse);
+            {gs,_,configure,[],[W,H,_,_]} -&gt;
+                gs:config(packer, [{width,W},{height,H}]),
+                loop(Win, Pid, Prompt, State, Parse);
+            {gs, entry,keypress,_,_} -&gt;
+                loop(Win, Pid, Prompt, State, Parse);
+            Any -&gt;
+                io:format(&quot;Discarded:\~p\~n&quot; ,[Any]),
+                loop(Win, Pid, Prompt, State, Parse)
+        end.
+
+scroll_to_show_last_line() -&gt;
+    Size        = gs:read(editor, size),
+    Height        = gs:read(editor, height),
+    CharHeight    = gs:read(editor, char_height),
+    TopRow        = Size - Height/CharHeight,
+    if    TopRow &gt; 0    -&gt; gs:config(editor, {vscrollpos, TopRow});
+        true        -&gt; gs:config(editor, {vscrollpos, 0})
+    end.
+
+test() -&gt;
+    spawn(fun() -&gt; test1() end).
+
+test1() -&gt;
+    W = io_widget:start(self()),
+    io_widget:set_title(W, &quot;Test window&quot; ),
+    loop(W).
+
+loop(W) -&gt;
+    receive
+        {W, {str, Str}} -&gt;
+            Str1 = Str ++ &quot;\\n&quot;,
+            io_widget:insert_str(W, Str1),
+            loop(W)
+    end.
+
+parse(Str) -&gt;
+    {str, Str}.
+</code></pre><h2 id="11-7-">11.7 Упражнения</h2>
+<ul>
+<li>улучшите графический виджет, добавив боковую панель для перечисления имён участников группы</li>
+<li>добавьте код для показа имён всех участников группы </li>
+<li>добавьте код для перечисления всех групп</li>
+<li>добавьте личные сообщения</li>
+<li>добавьте такой код, чтобы контроллер группы работал не на серверной машине, а на машине первого пользователя, который подключился к данной группе</li>
+<li>Посмотрите внимательно на диаграмму последовательности сообщений (Рис.11. 2), чтобы убедиться, что вы понимаете её и проверьте, что вы можете указать все сообщения из диаграммы в программном коде</li>
+<li>нарисуйте свою собственную диаграмму последовательности сообщений, чтобы показать, как решается проблема в фазе логина (в оригинале «фаза логина проблемы»)</li>
+</ul>
+<hr>
+<p>(1) Это облегчает нам жизнь и позволяет сосредоточиться на приложении вместо низкоуровневых деталей протокола.</p>
+<p>(2) <code>MM</code> означает middle man — посредник. Это процесс, который используется для связи с сервером.</p>
+<p>(3) <code>Nick</code> — это прозвище пользователя</p>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/10" title="Previous Post: Глава 10. Распределённое программирование" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 10. Распределённое программирование</a></li>
+  <li class="next"><a href="http://erlangbook.tk/12" title="Next Post: Глава 12. Интерфейсы с другими программами" class="navlinks-next">Глава 12. Интерфейсы с другими программами <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

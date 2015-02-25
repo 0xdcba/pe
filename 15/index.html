@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, ets, dets, данные, хранение данных, таблицы">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 15. ETS и DETS:</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 15. ETS и DETS:</h1>
+			<p>механизмы хранения данных
+<code>ets</code> и <code>dets</code> — это два системных модуля, используемых для эффективного хранения большого количества данных. <code>ETS</code> является сокращением от Erlang term storage (хранилище данных Эрланга), а <code>DETS</code> — сокращением от disk Erlang term Storage (дисковое хранилище данных эрланга).</p>
+<p><code>ETS</code> и <code>DETS</code> выполняют одинаковую задачу: предоставляют большие таблицы для хранения данных в формате ключ-значение. ETS хранит данные в памяти, а DETS на диске. Механизм ETS очень эффективен — используя ETS, вы можете хранить огромные количества данных (если у вас достаточно памяти) и осуществлять выборки за постоянное время (или, в некоторых случаях, за
+логарифмическое). DETS предоставляет интерфейс похожий на интерфейс ETS, но хранит таблицы на диске. Так как DETS хранит данные на диске, он гораздо медленнее чем ETS, но использует гораздо меньше памяти во время работы. Несколько процессов могут совместно работать с ETS и DETS таблицами, при этом обеспечивается высокоэффективный доступ к общим данным.</p>
+<p>ETS и DETS представляют собой структуры данных для задания соответствия между ключами и значениями. Мы рассмотрим наиболее общие операции над таблицами: вставку и выборку. ETS и DETS таблицы представляют собой просто список кортежей Эрланга.</p>
+<p>Данные в ETS являются временными и будут удалены, когда завершатся процессы работающие с таблицей. Данные же хранимые в DETS являются постоянными и должны остаться даже в случае краха всей системы. При открытии DETS таблица проверяется на консистентность. Если она повреждена, то предпринимается попытка восстановить таблицу (что может занять долгое время, пока все данные в таблице будут проверены). Это должно восстановить все данные в таблице, хотя последняя запись в таблице может потеряться, если она попала на момент краха системы.</p>
+<p>ETS таблицы широко используются для программ, которые эффективно работают с большими количествами данных, и где слишком дорого использовать неразрушающее присваивание и базовые структуры данных Эрланга.</p>
+<p>ETS таблицы выглядят как если бы они были реализованы на Эрланге, но на самом деле они реализованы на более низком системном уровне и обладают производительностью отличной от обычных объектов Эрланга. В частности, ETS таблицы не обрабатываются сборщиком мусора; это означает, что сборщик мусора не мешает при работе с очень большими таблицами, хотя он может немного повлиять на операции создания или доступа к ETS объектам.</p>
+<h2 id="15-1-">15.1 Базовые операции с таблицами</h2>
+<p>Существуют четыре базовые операции с ETS и DETS таблицами:</p>
+<p><strong>Создание новой таблицы или открытие существующей</strong>. </p>
+<p>Это производится с помощью ets:new или <code>dets:open_file</code>.</p>
+<p><strong>Вставка одного или нескольких кортежей в таблицу.</strong> </p>
+<p>Вызываем <code>insert(Tablename, X)</code>, где <code>X</code> — кортеж, или список кортежей. В ETS и DETS функция <code>insert</code> принимает одинаковые аргументы и выполняет одинаковую операцию.</p>
+<p><strong>Поиск кортежа в таблице.</strong> </p>
+<p>Вызываем <code>lookup(TableName, Key)</code>. Результатом будет список кортежей, которые соответствуют ключу <code>Key</code>. lookup определена для ETS и DETS. </p>
+<p>(Почему возвращаемое значение список кортежей? Если тип таблицы &quot;bag&quot;, то одному значению ключа может соответствовать несколько кортежей. Мы рассмотрим типы таблиц в следующем параграфе.)</p>
+<p>Если ни один из кортежей не соответствует указанному ключу, вернётся пустой список.</p>
+<p><strong>Завершение работы с таблицей.</strong></p>
+<p>Когда мы закончили работать с таблицей, мы можем сообщить об этом системе вызвав <code>dets:close(TableId)</code> или <code>ets:delete(TableId)</code>.</p>
+<h2 id="15-2-">15.2 Типы таблиц</h2>
+<p>ETS и DETS таблицы хранят кортежи. Один из элементов кортежа (по умолчанию — первый) называется ключом таблицы. Мы вставляем данные в таблицу и извлекаем данные оттуда по ключу. Что происходит, когда мы вставляем в таблицу данные, зависит от типа таблицы и значения вставляемого ключа. Некоторые таблицы, называемые множествами <code>set</code>, требуют, чтобы все ключи в таблице были уникальными. Другие, называемые сумками <code>bag</code>, позволяют нескольким кортежам иметь одинаковый ключ.</p>
+<p>Выбор правильного типа таблицы оказывает сильное влияние на производительность ваших программ.</p>
+<p>Каждый из двух типов таблиц имеет два варианта, что порождает четыре типа таблиц: множество (set), упорядоченное множество (ordered set), сумка (bag) и сумка с повторами (duplicate bag). В множестве все ключи кортежей таблицы должны быть уникальными. В упорядоченном множестве кортежи отсортированы. В сумке может быть более одного кортежа с одним ключом, но не может быть двух полностью одинаковых кортежей. В сумке с повторами несколько кортежей могут обладать одинаковым ключом, и одинаковые кортежи могут встречаться много раз.</p>
+<p>Мы можем показать как это работает с помощью следующей маленькой программы:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/ets_test.erl">ets_test.erl</a></p>
+<pre><code>-module(ets_test).
+-export([start/0]).
+
+start() -&gt;
+    lists:foreach(fun test_ets/1,
+    [set, ordered_set, bag, duplicate_bag]).
+
+test_ets(Mode) -&gt;
+    TableId = ets:new(test, [Mode]),
+    ets:insert(TableId, {a,1}),
+    ets:insert(TableId, {b,2}),
+    ets:insert(TableId, {a,1}),
+    ets:insert(TableId, {a,3}),
+    List = ets:tab2list(TableId),
+    io:format(&quot;\~-13w =&gt; \~p\~n&quot;, [Mode, List]),
+    ets:delete(TableId).
+</code></pre><p>Эта программа открывает ETS таблицу в каждом из четырёх режимов и вставляет кортежи <code>{a,1}</code>, <code>{b,2}</code>, <code>{a,1}</code> и <code>{a,3}</code>. Тогда мы вызываем <code>tab2list</code>, которая преобразует таблицу целиком в список, и печатаем её.</p>
+<p>Когда мы запустим программу, получим:</p>
+<pre><code>1&gt; ets_test:start().
+set =&gt; [{b,2},{a,3}]
+ordered_set =&gt; [{a,3},{b,2}]
+bag =&gt; [{b,2},{a,1},{a,3}]
+duplicate_bag =&gt; [{b,2},{a,1},{a,1},{a,3}]
+</code></pre><p>Для множества <code>set</code> каждый ключ встречается только один раз. Если мы вставили кортеж <code>{a,1}</code>, а вслед за ним <code>{a,3}</code>, тогда итоговое значение будет <code>{a,3}</code>. Единственное отличие между упорядоченным множеством (ordered set) и множеством состоит в том, что элементы упорядочены по значению ключа. Мы можем увидеть порядок, когда преобразуем таблицу в список вызвав <code>tab2list</code>.</p>
+<p>Сумочные типы таблиц могут содержать несколько записей с одним ключом. Так, например, когда мы вставляем <code>{a,1}</code> и <code>{a,3}</code>, сумка (bag) будет содержать оба кортежа, а не только последний. В сумке с повторами (duplicate bag) допустимо наличие нескольких идентичных кортежей. Так, когда мы вставляем <code>{a,1}</code> и <code>{a,1}</code> в сумку с повтором, результирующая таблица содержит две копии кортежа <code>{a,1}</code>, хотя в обычной сумке, была бы только одна копия кортежа.</p>
+<h2 id="15-3-ets-">15.3 Соображения об эффективности ETS таблиц</h2>
+<p>Внутри, ETS таблицы представляются хеш таблицами (за исключением упорядоченных множеств, которые представляются сбалансированными двоичными деревьями). Это означает, что происходят незначительные затраты на память при использовании множеств и временные затраты при использовании упорядоченных множеств. Вставка в множество занимает постоянное время, но вставка в упорядоченное множество занимает время пропорциональное логарифму общего количества записей в таблице.</p>
+<p>Когда вы выбираете между множеством и упорядоченным множеством, вы должны решить, что будете делать с таблицей после её создания — если вам нужна отсортированная таблица, используйте упорядоченное множество.</p>
+<p>Сумки более накладно использовать чем сумки с повторами, так как на каждую вставку все элементы с заданным ключом будут сравниваться на полную идентичность. Если число элементов с одинаковым ключом велико, то использование простых сумок может быть очень неэффективным.</p>
+<p>ETS таблицы располагаются в отдельных областях памяти, которые не связаны с обычной памятью процесса. ETS таблица привязывается к процессу, который создал её — когда этот процесс умирает, или когда вызывается ets:delete, таблица удаляется. ETS таблицы не обрабатываются сборщиком мусора, это означает, что большие объёмы данных могут храниться в таблице без затрат на сборку мусора.</p>
+<p>Когда кортеж вставляется в ETS таблицу, все структуры данных этого кортежа копируются из стека процесса и кучи в ETS таблицу. Когда производится выборка, результирующие кортежи копируются из ETS таблицы в стек и кучу процесса.</p>
+<p>Сказанное верно для всех структур за исключением двоичных данных. Большие двоичные данные располагаются в отдельных хранилищах (не в куче). Эти хранилища могут совместно использоваться несколькими процессами и ETS таблицами. Двоичные данные управляются сборщиком мусора основанным на счётчике ссылок, который отслеживает сколько различных процессов и ETS таблиц использует двоичные данные. Когда счётчик ссылок опускается до нуля, место в хранилище может быть освобождено.</p>
+<p>Всё это может показаться довольно сложным, но в результате отправка сообщений с большими двоичными данными между процессами довольно быстра, и вставка кортежей в ETS таблицы, которые содержат большие двоичные данные также очень быстра. Хорошее правило использовать двоичные данные как можно чаще для отображения строк и больших блоков нетипизированных данных.</p>
+<h2 id="15-4-ets-">15.4 Создание ETS таблицы</h2>
+<p>ETS таблицы создаются вызовом ets:new. Процесс, который создаёт таблицу называется &quot;владельцем&quot; (owner) таблицы. При создании таблицы, у неё есть набор параметров, которые не могут быть изменены в дальнейшем. Если процесс владелец умирает, место из под таблицы автоматически освобождается; либо таблица может быть удалена вызовом <code>ets:delete</code>.</p>
+<p><code>ets:new</code> принимает следующие аргументы:</p>
+<pre><code>@spec ets:new(Name, [Opt]) -&gt; TableId
+</code></pre><p><code>Name</code> - атом. <code>[Opt]</code> - список параметров из следующего перечня:</p>
+<p><code>set | ordered_set | bag | duplicate_bag</code> - Создать ETS таблицу указанного типа (мы говорили о них ранее).</p>
+<p><code>private</code> - Создать скрытую таблицу. Только процесс владелец может читать и писать в
+эту таблицу.</p>
+<p><code>public</code> - Создать публичную таблицу. Любой процесс, который знает идентификатор
+таблицы, может читать и писать в таблицу.</p>
+<p><code>protected</code> - Создать защищённую таблицу. Любой процесс, который знает идентификатор
+таблицы, может читать из неё, но только владелец может писать.</p>
+<p><code>named_table</code> - Если указан, то Name может быть использован для последовательных
+операций с таблицами.</p>
+<p><code>{keypos, K}</code> - Использовать K как позицию ключа в кортеже. Обычно позиция 1 используется для ключа. Вероятно, единственный случай, когда нам понадобится использовать этот параметр, если мы храним Erlang record,(который на самом деле замаскированный кортеж), где первый элемент содержит имя record.</p>
+<blockquote>
+<h3 id="ets-">ETS таблицы как аудиторные доски</h3>
+<p>Защищённые таблицы предоставляют некоторое подобие аудиторных досок (доски для мела в аудиториях). Вы можете думать о ETS таблицах как о поименованных аудиторных досках. Каждый, кто знает имя доски, может читать с неё, но только владелец может писать на ней.</p>
+<p>Замечание: Если ETS таблица была открыта в публичном режиме, то любой процесс, который знает её имя может и читать и писать в неё. В этом случае, пользователь должен самостоятельно убедиться, что чтение и запись производятся правильно и не нарушают целостности данных.</p>
+</blockquote>
+<p><em>Замечание</em>: Открытие таблицы ETS с пустыми параметрами равнозначно открытию таблицы с параметрами <code>[set,protected,{keypos,1}]</code>.</p>
+<p>Весь код в этой главе использует защищённые ETS таблицы. Защищённые таблицы особенно полезны, так как они позволяют предоставить общий доступ к данным практически без накладных затрат. Все локальные процессы, которые знают идентификатор таблицы, могут читать данные, но только один процесс может изменять таблицу.</p>
+<h2 id="15-5-ets">15.5 Примеры программ использующих ETS</h2>
+<p>Примеры в данном параграфе предназначены для работы с формированием триграмм. Это отличный способ продемонстрировать силу ETS таблиц.</p>
+<p>Наша цель — написать эвристическую программу, которая пытается предсказать, является ли заданная строка английским словом. Мы собираемся использовать её, когда будем создавать модуль полнотекстового поиска в параграфе 20.4, mapreduce и проводить индексирование нашего
+диска на странице 379.</p>
+<p>Как же мы можем предсказать, является ли случайная последовательность букв действительным английским словом? Один из способов — использовать триграммы. Триграмма - это последовательность трёх букв. Не все триграммы допустимы в действительном английском слове. Например, не существует английских слов, где существуют комбинации akj или rwb. Итак, для проверки, может ли быть заданная строка английским словом, мы будем проверять все наборы из трёх последовательных букв в строке на предмет совпадения с множеством триграмм, собранном на большом количестве английских слов.</p>
+<p>Первое, что наша программа сделает, это вычислит все триграммы в английском языке на очень большом множестве слов. Чтобы сделать это, мы воспользуемся таблицей ETS с типом множество. Решение использовать ETS множества основано на результатах измерения относительной производительности множеств и упорядоченных множеств ETS, а также &quot;чистых&quot; Эрланговых множеств предоставляемых модулем <code>set</code>.</p>
+<p>Вот что мы собираемся сделать:</p>
+<ol>
+<li><p>Создать итератор, который проходит по всем триграммам английского языка. Это очень сильно упростит написание кода вставки триграмм в различные типы таблиц.</p>
+</li>
+<li><p>Создадим ETS таблицы с типами множество и упорядоченное множество для хранения всех триграмм. Также, создадим множество содержащее все эти триграммы.</p>
+</li>
+<li><p>Замерим сколько времени потребуется для построения таблиц.</p>
+</li>
+<li><p>Замерим время поиска в этих таблицах.</p>
+</li>
+<li><p>Основываясь на измерениях, выберем наилучший тип и напишем функции доступа для этого типа.</p>
+</li>
+</ol>
+<p>Весь код находится в <code>lib_trigrams</code>. Мы собираемся представить его упустив некоторые детали. Но не беспокойтесь, вы найдёте полный листинг программы в конце главы. Таков наш план. Итак, приступим.</p>
+<h3 id="-">Итератор триграмм</h3>
+<p>Мы определим функцию <code>for_each_trigram_in_the_english_language(F, A)</code>. Эта функция применяет fun <code>F</code> к каждой триграмме в английском языке. <code>F</code> - это fun типа <code>fun(Str, A) -&gt; A</code>, а <code>Str</code> пробегает все значения триграмм в языке и <code>A</code> - это аккумулятор.</p>
+<p>Чтобы написать наш итератор[^1], нам потребуется большой список слов. Я использовал набор из 354984 английских слов[^2], для формирования триграмм. Используя этот список слов, мы можем определить итератор триграмм следующим способом:</p>
+<p> Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams.erl">lib_trigrams.erl</a></p>
+<pre><code>for_each_trigram_in_the_english_language(F, A0) -&gt;
+    {ok, Bin0} = file:read_file(&quot;354984si.ngl.gz&quot;),
+    Bin = zlib:gunzip(Bin0),
+    scan_word_list(binary_to_list(Bin), F, A0).
+    scan_word_list([], _, A) -&gt;
+    A;
+
+scan_word_list(L, F, A) -&gt;
+    {Word, L1} = get_next_word(L, []),
+    A1 = scan_trigrams([$\s|Word], F, A),
+    scan_word_list(L1, F, A1).
+
+%% scan the word looking for \r\n
+%% the second argument is the word (reversed) so it
+%% has to be reversed when we find \r\n or run out of characters
+
+get_next_word([$\r,$\n|T], L)    -&gt; {reverse([$\s|L]), T};
+get_next_word([H|T], L)            -&gt; get_next_word(T, [H|L]);
+get_next_word([], L)            -&gt; {reverse([$\s|L]), []}.
+
+scan_trigrams([X,Y,Z], F, A) -&gt;
+    F([X,Y,Z], A);
+scan_trigrams([X,Y,Z|T], F, A) -&gt;
+    A1 = F([X,Y,Z], A),
+    scan_trigrams([Y,Z|T], F, A1);
+scan_trigrams(_, _, A) -&gt;
+    A.
+</code></pre><p>Здесь следует отметить два момента. Во-первых, мы использовали <code>zlib:gunzip(Bin)</code> чтобы разархивировать zip-архив. Список слов достаточно велик, так что мы предпочли сохранить его на диск в сжатом виде, а не как текстовый файл. Во-вторых, мы добавили пробел до и после каждого слова <code>Second</code>; в нашем анализаторе триграмм, мы хотим интерпретировать пробел как обычную букву.</p>
+<h3 id="-">Строим таблицы</h3>
+<p>Мы строим наши ETS таблицы так:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams.erl">lib_trigrams.erl</a></p>
+<pre><code>make_ets_ordered_set() -&gt; make_a_set(ordered_set, &quot;trigramsOS.tab&quot;).
+make_ets_set()            -&gt; make_a_set(set, &quot;trigramsS.tab&quot;).
+
+make_a_set(Type, FileName) -&gt;
+    Tab = ets:new(table, [Type]),
+    F = fun(Str, _) -&gt; ets:insert(Tab, {list_to_binary(Str)}) end,
+    for_each_trigram_in_the_english_language(F, 0),
+    ets:tab2file(Tab, FileName),
+    Size = ets:info(Tab, size),
+    ets:delete(Tab),
+    Size.
+</code></pre><p>Обратите внимание, как мы вставляли отдельные триграммы, например ABC. Мы на самом деле мы вставляли кортеж <code>{&lt;&lt;&quot;ABC&quot;&gt;&gt;}</code> в таблицу ETS. Это выглядит забавно — кортеж только с одним элементом. Что это значит? Конечно, кортеж это контейнер для нескольких элементов, но это не запрещает иметь контейнер только с одним элементом. Но вспомните, что все записи в ETS таблицах должны быть кортежами, и по умолчанию первый элемент кортежа является ключом. Итак, в нашем случае, кортеж <code>{Key}</code> является ключом без значения.</p>
+<p>Вот код, который строит множество всех триграмм (на сей раз с использованием Эрлангового модуля sets и без ETS):</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams.erl">lib_trigrams.erl</a></p>
+<pre><code>make_mod_set() -&gt;
+    D = sets:new(),
+    F = fun(Str, Set) -&gt; sets:add_element(list_to_binary(Str),Set) end,
+    D1 = for_each_trigram_in_the_english_language(F, D),
+    file:write_file(&quot;trigrams.set&quot; , [term_to_binary(D1)]).
+</code></pre><h3 id="-">Сколько времени занимает построение таблиц?</h3>
+<p>Функция <code>lib_trigrams:make_tables()</code>, показанная в листинге в конце главы, строит все таблицы. Она включает несколько инструкций, которые помогут определить размер таблиц и время необходимое для их создания.</p>
+<pre><code>1&gt; lib_trigrams:make_tables().
+Counting - No of trigrams=3357707 time/trigram=0.577938
+Ets ordered Set size=19.0200 time/trigram=2.98026
+Ets set size=19.0193 time/trigram=1.53711
+Module Set size=9.43407 time/trigram=9.32234
+ok
+</code></pre><p>О чём это говорит нам? Во-первых, у нас 3.3 миллиона триграмм, и требуется пол микросекунды для обработки каждой триграммы. Время вставки триграммы в ETS упорядоченное множество было 2.9 микросекунды, в ETS множество было 1.5 микросекунды и 9.3 микросекунды в множество Эрланга. Что касается хранилищ, ETS множества и упорядоченные множества потребляют 19 байт на триграмму, а модуль sets потребляет 9 байт на триграмму.</p>
+<h3 id="-">Каково время доступа к таблицам?</h3>
+<p>Итак, требуется некоторое время для построения таблиц, но в нашем случае это не так уж важно. Более важный вопрос, каково время доступа к таблице? Чтобы ответить на этот вопрос, надо написать код, который будет измерять время доступа к таблице. Мы будем искать каждую триграмму в таблице ровно один раз и определять среднее время на поиск. Вот код, который определяет время:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams.erl">lib_trigrams.erl</a></p>
+<pre><code>timer_tests() -&gt;
+    time_lookup_ets_set(&quot;Ets ordered Set&quot; , &quot;trigramsOS.tab&quot; ),
+    time_lookup_ets_set(&quot;Ets set&quot; , &quot;trigramsS.tab&quot; ),
+    time_lookup_module_sets().
+
+time_lookup_ets_set(Type, File) -&gt;
+    {ok, Tab} = ets:file2tab(File),
+    L = ets:tab2list(Tab),
+    Size = length(L),
+    {M, _} = timer:tc(?MODULE, lookup_all_ets, [Tab, L]),
+    io:format(&quot;\~s lookup=\~p micro seconds\~n&quot; ,[Type, M/Size]),
+    ets:delete(Tab).
+
+lookup_all_ets(Tab, L) -&gt;
+    lists:foreach(fun({K}) -&gt; ets:lookup(Tab, K) end, L).
+    time_lookup_module_sets() -&gt;
+    {ok, Bin} = file:read_file(&quot;trigrams.set&quot; ),
+    Set = binary_to_term(Bin),
+    Keys = sets:to_list(Set),
+    Size = length(Keys),
+    {M, _} = timer:tc(?MODULE, lookup_all_set, [Set, Keys]),
+    io:format(&quot;Module set lookup=\~p micro seconds\~n&quot; ,[M/Size]).
+
+lookup_all_set(Set, L) -&gt;
+        lists:foreach(fun(Key) -&gt; sets:is_element(Key, Set) end, L).
+</code></pre><p>Вот что мы получим:</p>
+<pre><code>1&gt; lib_trigrams:timer_tests().
+Ets ordered Set lookup=1.79964 micro seconds
+Ets set lookup=0.719279 micro seconds
+Module sets lookup=1.35268 micro seconds
+ok
+</code></pre><p>Здесь время - среднее время за одну выборку.</p>
+<h3 id="-">И победитель это...</h3>
+<p>Ну, здесь всё просто. ETS множество выиграло с большим отрывом. На моей машине, множеству требуется полмикросекунды на выборку - это очень хорошо!</p>
+<p><em>Примечание</em>: выполнение тестов наподобие этих, и вообще измерения сколько требуется конкретной операции, является признаком хорошего стиля программирования. Нам не надо моделировать экстремальные условия и измерять всё подряд, только наиболее долгие операции в нашей программе. Быстрые операции должны быть запрограммированы наиболее красивым способом. Если нам приходится писать невероятно страшный и запутанный код, надо его детально документировать.</p>
+<p>А сейчас мы можем написать функцию, которая попробует предсказать, является ли строка действительным английским словом.</p>
+<p>Чтобы определить является ли строка английским словом, мы просматриваем все триграммы в строке и проверяем каждую на наличие в вычисленном ранее в списке. Функция <code>is_word</code> делает это.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams.erl">lib_trigrams.erl</a></p>
+<pre><code>is_word(Tab, Str) -&gt; is_word1(Tab, &quot;\s&quot; ++ Str ++ &quot;\s&quot; ).
+
+is_word1(Tab, [_,_,_]=X) -&gt; is_this_a_trigram(Tab, X);
+is_word1(Tab, [A,B,C|D]) -&gt;
+    case is_this_a_trigram(Tab, [A,B,C]) of
+        true -&gt; is_word1(Tab, [B,C|D]);
+        false -&gt; false
+    end;
+is_word1(_, _) -&gt;
+    false.
+
+is_this_a_trigram(Tab, X) -&gt;
+    case ets:lookup(Tab, list_to_binary(X)) of
+        [] -&gt; false;
+        _ -&gt; true
+    end.
+
+open() -&gt;
+    {ok, I} = ets:file2tab(filename:dirname(code:which(?MODULE))
+                            ++ &quot;/trigramsS.tab&quot; ),
+    I.
+
+close(Tab) -&gt; ets:delete(Tab).
+</code></pre><p>Функции <code>open</code> и <code>close</code> открывают ETS таблицу и заполняют её. Всякий вызов <code>is_word</code> должен &quot;оборачиваться&quot; в эти функции.</p>
+<p>Другой трюк, который я использовал здесь — метод, которым я определяю внешний файл с таблицей триграмм. Я положил его в директорию из которой был загружен текущий модуль. <code>code:which(?MODULE)</code> возвращает имя файла, в котором обнаружен объектный код для <code>?MODULE</code>.</p>
+<h2 id="15-6-dets">15.6 DETS</h2>
+<p>DETS предоставляет хранилище кортежей на диске. Максимальный размер DETS файла 2Гб. DETS файлы должны быть открыты перед использованием и правильно закрыты после. Если они не были правильно закрыты, они будут автоматически восстановлены при следующем открытии. Так как восстановление может занять долгое время, важно закрывать их правильно до завершения приложения.</p>
+<p>У DETS таблиц параметры совместного доступа отличаются от ETS таблиц. Когда открывается DETS таблица, ей должно быть присвоено глобальное имя. Если два или более локальных процесса откроют DETS таблицу с одинаковым именем и параметрами, они будут иметь к ней совместный доступ. Таблица будет оставаться открытой до тех пор пока все процессы не закроют её (или пока они не завершатся).</p>
+<h3 id="-">Пример: Индекс имён файлов</h3>
+<p>Мы начнём с примера и ещё одной утилиты, которая нам потребуется для полнотекстового движка, который будет рассматриваться в параграфе 20.4, для mapreduce и параграфа &quot;Индексируем наш диск&quot;, на странице 379.</p>
+<p>Мы собираемся создать дисковую таблицу, которая поставит соответствие целых числ именам файлов (пронумерует), и т.д. Мы определим функцию <code>filename2index</code> и обратную ей <code>index2filename</code>.</p>
+<p>Чтобы реализовать их, мы создадим DETS таблицу и поместим в неё три различных типа кортежей:</p>
+<p><code>{free, N}</code> - <code>N</code> это первый свободный индекс в таблице. Когда мы вставляем новое имя файла в таблицу, ему будет присвоен индекс <code>N</code>.</p>
+<p><code>{FileNameBin, K}</code> - <code>FileNameBin</code> (двоичная строка) соответствует индексу <code>K</code>.</p>
+<p><code>{K, FileNameBin}</code> - <code>K</code> (целое) соответствует файлу <code>FilenameBin</code>.</p>
+<p>Заметьте как добавление каждого нового файла, добавляет две новые строки в таблицу: запись Файл -&gt; Индекс и запись Индекс -&gt; Файл. Это сделано из соображений эффективности. Когда ETS или DETS таблицы создаются, только один элемент кортежа может выступать в роли ключа. Поиск кортежа не по ключевому полю возможен, но он очень неэффективен, потому что он приводит к перебору всех значений таблицы. Это достаточно дорогостоящая операция, особенно, когда таблица располагается на диске.</p>
+<p>Сейчас давайте напишем программу. Начнём с функций открытия и закрытия DETS таблицы для хранения имён всех наших файлов.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_filenames_dets.erl">lib_filenames_dets.erl</a></p>
+<pre><code>-module(lib_filenames_dets).
+-export([open/1, close/0, test/0, filename2index/1, index2filename/1]).
+
+open(File) -&gt;
+    io:format(&quot;dets opened:~p~n&quot; , [File]),
+    Bool = filelib:is_file(File),
+    case dets:open_file(?MODULE, [{file, File}]) of
+        {ok, ?MODULE} -&gt;
+            case Bool of
+                true -&gt; void;
+                false -&gt; ok = dets:insert(?MODULE, {free,1})
+            end,
+            true;
+        {error,_Reason} -&gt;
+            io:format(&quot;cannot open dets table~n&quot; ),
+            exit(eDetsOpen)
+    end.
+
+close() -&gt; dets:close(?MODULE).
+</code></pre><p>Код для открытия автоматически инициализирует DETS таблицу вставляя кортеж <code>{free, 1}</code>, если была создана новая таблица. <code>filelib:is_file(File)</code> возвращает <code>true</code>, если файл <code>File</code> существует, в противном случае, она возвращает <code>false</code>. Заметьте, что <code>dets:open_file</code> создаёт новый файл, или открывает существующий, именно поэтому мы проверяем существовал ли файл до вызова <code>dets:open_file</code>.</p>
+<p>В этом коде я использовал макрос <code>?MODULE</code> много раз; <code>?MODULE</code> преобразуется в имя текущего модуля <code>lib_filenames_dets</code>. Многие вызовы DETS таблиц требуют уникальный атом — имя таблицы.</p>
+<p>Для генерации уникального имени таблицы нам достаточно имени модуля. Так как в системе не может быть загружено два модуля с одним именем, то, следуя этому соглашению везде, мы обоснованно можем считать, что мы присваиваем уникальные имена таблицам.</p>
+<p>Я использовал макрос ?MODULE вместо того, чтобы каждый раз писать имя модуля, потому что у меня есть привычка менять названия модулей, пока я пишу код. Если использовать макрос, то даже при изменении имени модуля код останется верным.</p>
+<p>Мы уже открыли файл, вставка нового имени файла в таблицу очень проста. Это реализовано как сторонний эффект вызова <code>filename2index</code>. Если имя файла уже сеть в таблице, то возвращается его индекс; в противном случае рассчитывается новый индекс и таблица обновляется, на этот раз тремя кортежами:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_filenames_dets.erl">lib_filenames_dets.erl</a></p>
+<pre><code>filename2index(FileName) when is_binary(FileName) -&gt;
+    case dets:lookup(?MODULE, FileName) of
+        [] -&gt;
+            [{_,Free}] = dets:lookup(?MODULE, free),
+            ok = dets:insert(?MODULE,
+            [{Free,FileName},{FileName,Free},{free,Free+1}]),
+            Free;
+        [{_,N}] -&gt;
+            N
+    end.
+</code></pre><p>Заметьте как мы записываем три кортежа в таблицу. Второй аргумент <code>dets:insert</code> должен быть либо кортежем, либо списком кортежей. Заметьте также, что имя файла представлено двоичным значением. Это сделано из соображений эффективности. Вообще хорошо иметь привычку использовать двоичные данные для представления строк в ETS и DETS таблицах.</p>
+<p>Внимательный читатель может заметить, что в примере есть возможный race condition (состояние гонки) в <code>filename2index</code>. Если два параллельных процесса вызовут <code>dets:lookup</code> до вызова <code>dets:insert</code>, в этом случае <code>filename2index</code> вернёт некорректное значение. Чтобы код работал, мы должны убедиться, что он работает в единственном экземпляре в каждый момент времени.</p>
+<p>Преобразовать индекс в имя файла просто:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_filenames_dets.erl">lib_filenames_dets.erl</a></p>
+<pre><code>index2filename(Index) when is_integer(Index) -&gt;
+    case dets:lookup(?MODULE, Index) of
+        []            -&gt; error;
+        [{_,Bin}]    -&gt; Bin
+    end.
+</code></pre><p>Небольшое дизайнерское решение. Что будет произойдёт, если мы вызовем <code>index2filename(Index)</code>, а в таблице не будет имени файла привязанного к этому индексу? Мы можем завершиться вызвав <code>exit(ebadIndex)</code>. Но мы выбрали более элегантную альтернативу: мы просто возвращаем атом <code>error</code>. Вызывающий код может сам выбрать между правильным и неправильным значениями, так как все правильные имена файлов имеют тип <code>binary</code>.</p>
+<p>Отметьте также защитники (guard tests) в <code>filename2index</code> и <code>index2filename</code>. Они проверяют правильный ли тип имеют аргументы. Вообще, это правильно, потому что ввод данных неверного типа в DETS таблицу может вызвать ситуации, которые очень трудно отлаживать после. Мы можем представить запись данных с неверным типом в таблицу и чтение её через несколько месяцев, когда уже поздно делать что-либо. Потому, лучше проверять, что все данные верны перед вставкой в таблицу.</p>
+<h2 id="15-7-">15.7 О чём мы не сказали?</h2>
+<p>ETS и DETS таблицы поддерживают набор операций, которые мы не рассмотрели в этой главе. Эти операции разделяются на следующие категории:</p>
+<ul>
+<li>получение и удаление объектов по шаблону</li>
+<li>преобразования между ETS и DETS таблицами и между ETS таблицами и файлами на диске</li>
+<li>определение ресурсов используемых таблицей</li>
+<li>пересечение (traversing) всех элементов в таблице</li>
+<li>восстановление повреждённых DETS таблиц</li>
+<li>визуализация таблиц</li>
+</ul>
+<p>Вы можете найти больше информации на страницах руководства, доступного на <a href="http://www.erlang.org/doc/man/ets.html">http://www.erlang.org/doc/man/ets.html</a> и <a href="http://www.erlang.org/doc/man/dets.html">http://www.erlang.org/doc/man/dets.html</a>.</p>
+<p>В заключение скажем, что ETS и DETS таблицы изначально разрабатывались для реализации Mnesia. Мы ещё не говорили о Mnesia, так как она — тема главы 17: База данных Эрланга, страница 313. Mnesia — база данных реального времени написанная на Эрланге. Mnesia использует ETS и DETS таблицы внутри себя, и много функций из модулей ETS и DETS предназначены для внутреннего пользования Mnesia. Mnesia может выполнять все типы операций, которые невозможно сделать на чистых ETS и DETS таблицах. Например, мы можем создавать индексы не только по первичному ключу, подобный пример мы использовали при двойной вставке в функции filename2index. Mnesia на самом деле создаёт несколько ETS или DETS таблиц, для реализации такого функционала, но это создание спрятано от пользователя.</p>
+<h2 id="15-8-">15.8 Листинги кода</h2>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/lib_trigrams_complete.erl">lib_trigrams_complete.erl</a></p>
+<pre><code>%%---
+%% Excerpted from &quot;Programming Erlang&quot;,
+%% published by The Pragmatic Bookshelf.
+%% Copyrights apply to this code. It may not be used to create 
+%% training material,
+%% courses, books, articles, and the like. Contact us if you 
+%% are in doubt.
+%% We make no guarantees that this code is fit for any purpose.
+%% Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more
+%% book information.
+%%---
+
+-module(lib_trigrams).
+-export([for_each_trigram_in_the_english_language/2,
+            make_tables/0, timer_tests/0,
+            open/0, close/1, is_word/2,
+            how_many_trigrams/0,
+            make_ets_set/0, make_ets_ordered_set/0, make_mod_set/0,
+            lookup_all_ets/2, lookup_all_set/2
+        ]).
+-import(lists, [reverse/1]).
+
+make_tables() -&gt;
+    {Micro1, N} = timer:tc(?MODULE, how_many_trigrams, []),
+    io:format(&quot;Counting - No of trigrams=~p time/trigram=~p~n&quot;,
+                [N,Micro1/N]),
+    {Micro2, Ntri} = timer:tc(?MODULE, make_ets_ordered_set, []),
+    FileSize1 = filelib:file_size(&quot;trigramsOS.tab&quot;),
+    io:format(&quot;Ets ordered Set size=~p    time/trigram=~p~n&quot;,
+                [FileSize1/Ntri,Micro2/N]),
+    {Micro3, _} = timer:tc(?MODULE, make_ets_set, []),
+    FileSize2 = filelib:file_size(&quot;trigramsS.tab&quot;),
+    io:format(&quot;Ets set size=~p time/trigram=~p~n&quot;,
+                [FileSize2/Ntri, Micro3/N]),
+    {Micro4, _} = timer:tc(?MODULE, make_mod_set, []),
+    FileSize3 = filelib:file_size(&quot;trigrams.set&quot;),
+    io:format(&quot;Module sets size=~p time/trigram=~p~n&quot;,
+                [FileSize3/Ntri, Micro4/N]).
+
+make_ets_ordered_set() -&gt; 
+    make_a_set(ordered_set,&quot;trigramsOS.tab&quot;).
+make_ets_set() -&gt; 
+    make_a_set(set, &quot;trigramsS.tab&quot;).
+
+make_a_set(Type, FileName) -&gt;
+    Tab = ets:new(table, [Type]),
+    F = fun(Str, _) -&gt; ets:insert(Tab, {list_to_binary(Str)}) end,
+    for_each_trigram_in_the_english_language(F, 0),
+    ets:tab2file(Tab, FileName),
+    Size = ets:info(Tab, size),
+    ets:delete(Tab),
+    Size.
+
+make_mod_set() -&gt;
+    D = sets:new(),
+    F = fun(Str, Set) -&gt;
+                sets:add_element(list_to_binary(Str),Set)
+        end,
+    D1 = for_each_trigram_in_the_english_language(F, D),
+    file:write_file(&quot;trigrams.set&quot;, [term_to_binary(D1)]).
+
+timer_tests() -&gt;
+    time_lookup_ets_set(&quot;Ets ordered Set&quot;, &quot;trigramsOS.tab&quot;),
+    time_lookup_ets_set(&quot;Ets set&quot;, &quot;trigramsS.tab&quot;),
+    time_lookup_module_sets().
+
+
+time_lookup_ets_set(Type, File) -&gt;
+    {ok, Tab} = ets:file2tab(File),
+    L = ets:tab2list(Tab),
+    Size = length(L),
+    {M, _} = timer:tc(?MODULE, lookup_all_ets, [Tab, L]),
+    io:format(&quot;~s lookup=~p micro seconds~n&quot;,[Type, M/Size]),
+    ets:delete(Tab).
+
+lookup_all_ets(Tab, L) -&gt;
+    lists:foreach(fun({K}) -&gt; ets:lookup(Tab, K) end, L).
+
+time_lookup_module_sets() -&gt;
+    {ok, Bin} = file:read_file(&quot;trigrams.set&quot;),
+    Set = binary_to_term(Bin),
+    Keys = sets:to_list(Set),
+    Size = length(Keys),
+    {M, _} = timer:tc(?MODULE, lookup_all_set, [Set, Keys]),
+    io:format(&quot;Module set lookup=~p micro seconds~n&quot;,[M/Size]).
+
+lookup_all_set(Set, L) -&gt;
+    lists:foreach(fun(Key) -&gt; sets:is_element(Key, Set) end, L).
+
+how_many_trigrams() -&gt;
+    F = fun(_, N) -&gt; 1 + N end,
+    for_each_trigram_in_the_english_language(F, 0).
+
+%% An iterator that iterates through all trigrams in the language
+
+for_each_trigram_in_the_english_language(F, A0) -&gt;
+    {ok, Bin0} = file:read_file(&quot;354984si.ngl.gz&quot;),
+    Bin = zlib:gunzip(Bin0),
+    scan_word_list(binary_to_list(Bin), F, A0).
+
+scan_word_list([], _, A) -&gt;
+    A;
+scan_word_list(L, F, A) -&gt;
+    {Word, L1} = get_next_word(L, []),
+    A1 = scan_trigrams([\$\\s|Word], F, A),
+    scan_word_list(L1, F, A1).
+
+%% scan the word looking for \\r\\n
+%% the second argument is the word (reversed) so it
+%% has to be reversed when we find \\r\\n or run out of characters
+
+get_next_word([\$\\r,\$\\n|T], L)    -&gt; {reverse([\$\\s|L]), T};
+get_next_word([H|T], L)                -&gt; get_next_word(T, [H|L]);
+get_next_word([], L)                -&gt; {reverse([\$\\s|L]), []}.
+
+scan_trigrams([X,Y,Z], F, A) -&gt;
+    F([X,Y,Z], A);
+
+
+scan_trigrams([X,Y,Z|T], F, A) -&gt;
+    A1 = F([X,Y,Z], A),
+    scan_trigrams([Y,Z|T], F, A1);
+scan_trigrams(_, _, A) -&gt;
+    A.
+
+
+%% access routines
+%%     open() -&gt; Table
+%%     close(Table)
+%%     is_word(Table, String) -&gt; Bool
+
+
+is_word(Tab, Str) -&gt; is_word1(Tab, &quot;\\s&quot; ++ Str ++ &quot;\\s&quot;).
+
+is_word1(Tab, [_,_,_]=X) -&gt; is_this_a_trigram(Tab, X);
+is_word1(Tab, [A,B,C|D]) -&gt;
+    case is_this_a_trigram(Tab, [A,B,C]) of
+        true    -&gt; is_word1(Tab, [B,C|D]);
+        false    -&gt; false
+    end;
+is_word1(_, _) -&gt;
+    false.
+
+is_this_a_trigram(Tab, X) -&gt;
+    case ets:lookup(Tab, list_to_binary(X)) of
+        [] -&gt; false;
+        _  -&gt; true
+end.
+
+open() -&gt;
+    {ok, I} = ets:file2tab(filename:dirname(code:which(?MODULE))
+                            ++ &quot;/trigramsS.tab&quot;),
+    I.
+
+close(Tab) -&gt; ets:delete(Tab).
+</code></pre><hr>
+<p>[^1]:Я называю это итераторм, но если быть точным, то это оператор свёртки (fold) очень похожий на lists:foldl.</p>
+<p>[^2]:Взято с <a href="http://www.dcs.shef.ac.uk/research/ilash/Moby/">http://www.dcs.shef.ac.uk/research/ilash/Moby/</a></p>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/14" title="Previous Post: Глава 14. Программирование с сокетами" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 14. Программирование с сокетами</a></li>
+  <li class="next"><a href="http://erlangbook.tk/16" title="Next Post: Глава 16. Введение в OTP" class="navlinks-next">Глава 16. Введение в OTP <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>

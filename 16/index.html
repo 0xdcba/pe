@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	
+	<meta charset="utf-8">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+<meta name="keywords" content="эрланг, erlang, otp, введение в otp, библиотека">
+
+
+<meta name="description" content="Модель программирования Эрланга — это то как мы, на самом деле, думаем и взаимодействуем. Джо Армстронг">
+
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="http://bootstrap-3.ru/assets/ico/favicon.ico">
+
+<title>Глава 16. Введение в OTP</title>
+
+<!-- Bootstrap core CSS -->
+<link href="/css/bootstrap.min.css" rel="stylesheet">
+
+<!--bootstrap material design-->
+        <link href="/css/ripples.min.css" rel="stylesheet">
+        <link href="/css/material-wfont.min.css" rel="stylesheet">
+
+<!-- Custom styles for this template -->
+<link href="/css/theme.css" rel="stylesheet">
+<link href="/css/pygments.css" rel="stylesheet">
+
+<!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+
+	
+</head>
+<body>
+	
+	<!--LiveInternet counter--><script type="text/javascript"><!--
+new Image().src = "//counter.yadro.ru/hit?r"+
+escape(document.referrer)+((typeof(screen)=="undefined")?"":
+";s"+screen.width+"*"+screen.height+"*"+(screen.colorDepth?
+screen.colorDepth:screen.pixelDepth))+";u"+escape(document.URL)+
+";h"+escape(document.title.substring(0,80))+
+";"+Math.random();//--></script><!--/LiveInternet-->
+
+
+	
+	<div class="container">
+		<!-- main menu-->
+		<menu>
+			<div class="container" role="navigation">
+<ul class="nav nav-pills nav-justified">
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/index.html">Главная</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/chapters.html">Оглавление</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/download.html">Скачать книгу</a>
+	</li>
+
+	<li role="presentation" >
+		<a class="menu_item" style="color:white" href="http://erlangbook.tk/about_translation.html">О переводе</a>
+	</li>
+
+</ul>
+</div>
+
+		</menu>
+		
+		
+		<!-- page content -->
+		<div class="jumbotron" >
+			<h1 class="cover-heading">Глава 16. Введение в OTP</h1>
+			<p>OTP означает Открытая Телекоммуникационная Платформа (Open Telecom Platform). На самом деле это название обманчиво, потому что OTP имеет более широкое применение, чем может показаться. OTP - это часть операционной системы с набором библиотек и процедур, используемых для
+построения масштабируемых, отказоустойчивых и распределенных приложений. OTP была разработана шведской компанией Ericsson и использовалась внутри Ericsson для разработки отказоустойчивых систем[^1].</p>
+<p>OTP содержит ряд мощных инструментов, таких как, полноценный web сервер, FTP сервер, CORBA ORB и других, написанных на Erlang. Еще OTP содержит высокотехнологичные инструменты для создания приложений в сфере телекоммуникаций, с реализацией протоколов H.248, SNMP, и
+кросс-компилятор ASN.1-to-Erlang. Но я не буду говорить об этом; вы сможете найти информацию по этой теме, посетив сайты, ссылки на которые даны в разделе С.1 <em>Онлайн документации</em>, на странице __.</p>
+<p>Если вы хотите разработать свою программу, используя OTP, тогда основные принципы в поведении OTP будут для вас очень <em>привлекательны</em>. Это поведение объединяет общие поведенческие модели – думайте об этом, как об основе которая, по сути, есть параметризованные <em>вызовы</em> модулей. Мощь OTP исходит из ее свойств, таких как отказоустойчивость, масштабируемость, динамический изменяемый код и т.д. собственно это и есть поведение OTP. Другими словами, при написании обратных вызовов вам не надо беспокоиться об отказоустойчивости, потому что об этом
+позаботится сама OTP. Java-программисты могут думать о поведении как о J2EE контейнере.</p>
+<p>Проще говоря, поведение решает нефункциональную часть проблемы, а обратные вызовы – функциональную. Прелесть в том, что нефункциональная часть проблемы (например, динамическое изменение кода) всегда одинакова для всех приложений, тогда как функциональная часть (реализация обратных вызовов) различна в каждом отдельном случае.</p>
+<p>В этой главе мы увидим одно из поведений, модуль <code>gen_server</code>, во всех деталях. Но перед тем как погрузиться во все тонкости работы <code>gen_server</code>, сначала мы рассмотрим простой сервер (простейший сервер, который возможно показать) и будем его изменять шаг за шагом, пока не
+получим полноценный модуль <code>gen_server</code>. Таким образом, вы реально сможете понять, как работает <code>gen_server</code> и будете готовы к исследованию внутренностей.</p>
+<p>Вот план этой главы:</p>
+<ul>
+<li>Написание маленькой клиент-серверной программы на Erlang.</li>
+<li>Постепенная «генерализация» этой программы и добавление новых возможностей.</li>
+<li>Переход к реальному коду.</li>
+</ul>
+<h2 id="16-1-generic-server-">16.1 Путь к обыкновенному серверу (Generic Server)</h2>
+<p><em>Это наиболее важный подраздел в этой книге, прочитайте его один раз, два
+раза, прочитайте его 100 раз – чтобы убедиться в том, что вы все поняли.</em></p>
+<p>Мы приступаем к написанию четырех маленьких северов с названиями <strong>server1</strong>, <strong>server2</strong>..., каждый слегка будет отличаться от предыдущего. Нашей целью является полное разделение нефункциональной и функциональной частей решаемой задачи. Последнее предложение сейчас скорее всего ничего для вас не значит, но не беспокойтесь – скоро об всем узнаете. Итак, глубоко вдохните...</p>
+<h3 id="-1-">Сервер №1: Простой сервер</h3>
+<p>Первая попытка. Это маленький сервер, который мы реализуем, написав модуль обратных вызовов.</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/server1.erl">server1.erl</a></p>
+<pre><code>-module(server1).
+-export([start/2, rpc/2]).
+
+start(Name, Mod) -&gt;
+    register(Name, spawn(fun() -&gt; loop(Name, Mod, Mod:init()) end)).
+
+rpc(Name, Request) -&gt;
+    Name ! {self(), Request},
+    receive
+        {Name, Response} -&gt; Response
+    end.
+
+loop(Name, Mod, State) -&gt;
+    receive
+        {From, Request} -&gt;
+            {Response, State1} = Mod:handle(Request, State),
+            From ! {Name, Response},
+            loop(Name, Mod, State1)
+    end.
+</code></pre><p>Это небольшое количество кода является основой для сервера. Давайте напишем <em>обратные вызовы</em> для <strong>сервера №1</strong>. Вот код модуля обратных вызовов:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/name_server.erl">name_server.erl</a></p>
+<pre><code>-module(name_server).
+-export([init/0, add/2, whereis/1, handle/2]).
+-import(server1, [rpc/2]).
+
+%% client routines
+add(Name, Place) -&gt; rpc(name_server, {add, Name, Place}).
+whereis(Name)    -&gt; rpc(name_server, {whereis, Name}).
+
+%% callback routines
+init() -&gt; dict:new().
+
+handle({add, Name, Place}, Dict) -&gt; {ok, dict:store(Name, Place, Dict)};
+handle({whereis, Name}, Dict)    -&gt; {dict:find(Name, Dict), Dict}.
+</code></pre><p>Этот код фактически выполняет две задачи. Он выступает в роли модуля обратных вызовов, вызываемых из серверного кода, и иногда содержит интерфейсные конструкции, которые будут вызываться на стороне клиента. Обычно, по соглашениям OTP, эти функции объединяются в один модуль.</p>
+<p>Чтобы увидеть как это работает, сделайте следующее:</p>
+<pre><code>1&gt; server1:start(name_server, name_server).
+true
+2&gt; name_server:add(joe, &quot;at home&quot;).
+ok
+3&gt; name_server:whereis(joe).
+{ok,&quot;at home&quot;}
+</code></pre><p>Сейчас <strong>прервемся и подумаем</strong>. Обратный вызов не имеет кода для параллелизации, не порождает процессы, не отправляет и не принимает сообщения, ничего не регистрирует. Это просто последовательный код и <strong>ничего более</strong>. Что же это значит? </p>
+<p><em>А это означает то, что мы сможем написать клиент-серверное приложение без понимания того, что лежит в основе модели параллельных процессов.</em></p>
+<p>Это <em>основной</em> шаблон для всех серверов. Однажды вы поймете основные <em>структуры</em>, это просто как «цигарка».</p>
+<h3 id="-2-">Сервер №2: Сервер с транзакциями</h3>
+<p>В этом примере сервер прервет клиента, если результатом запроса будет ошибка:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/server2.erl">server2.erl</a></p>
+<pre><code>-module(server2).
+-export([start/2, rpc/2]).
+
+start(Name, Mod) -&gt;
+    register(Name, spawn(fun() -&gt; loop(Name,Mod,Mod:init()) end)).
+
+rpc(Name, Request) -&gt;
+    Name ! {self(), Request},
+    receive
+        {Name, crash} -&gt; exit(rpc);
+        {Name, ok, Response} -&gt; Response
+    end.
+
+loop(Name, Mod, OldState) -&gt;
+    receive
+        {From, Request} -&gt;
+            try Mod:handle(Request, OldState) of
+                  {Response, NewState} -&gt;
+                        From ! {Name, ok, Response},
+                        loop(Name, Mod, NewState)
+              catch
+                    _:Why -&gt;
+                        log_the_error(Name, Request, Why),
+                        %% send a message to cause the client to crash
+                        From ! {Name, crash},
+                        %% loop with the *original* state
+                        loop(Name, Mod, OldState)
+              end
+    end.
+
+log_the_error(Name, Request, Why) -&gt;
+    io:format(&quot;Server ~p request ~p ~n&quot;
+          &quot;caused exception ~p~n&quot;, 
+          [Name, Request, Why]).
+</code></pre><p>Если возникает исключение в обработчике, то единственное что дает нам «транзакционную семантику» в этом сервере – это цикл с  <em>оригинальным значением</em> <code>State</code>. Если обработчик завершится успешно, то тогда цикл со значением <code>NewState</code>, предоставляется обработчику.</p>
+<p>Зачем хранить оригинальное состояние? Обработчик выполняется с ошибкой тогда, когда клиент отправляет неверное сообщение, в ответ клиент получает сообщение об аварии. Клиент не может работать, потому что запрос, отправленный на сервер, привел к сбою в обработчике. Зато другие
+клиенты желающие использовать этот сервер не пострадают. Более того,состояние сервера не изменится, если в обработчике возникнет ошибка.</p>
+<p>Замечу, что модуль обратных вызовов для этого сервера <em>точно такой же</em> как и для <strong>сервера №1</strong>. <em>Изменяя сервер и оставляя неизменным модуль обратных вызовов, мы может менять нефункциональную часть поведения модуля обратных вызовов.</em></p>
+<p><em>Примечание:</em> Последнее высказывание не является чистой правдой. Мы все-таки сделали небольшие изменения в модуле обратных вызовов, когда мы перешли от <strong>сервера №1</strong> к <strong>серверу №2</strong> мы все же изменили имя сервера в директиве <code>–import</code> c <code>server1</code> на <code>server2</code>. Других изменений не было.</p>
+<h3 id="-3-">Сервер №3: Сервер с горячей заменой кода</h3>
+<p>Сейчас мы добавим в наш сервер механизм горячей замены кода:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/server3.erl">server3.erl</a></p>
+<pre><code>-module(server3).
+-export([start/2, rpc/2, swap_code/2]).
+
+start(Name, Mod) -&gt;
+    register(Name, 
+       spawn(fun() -&gt; loop(Name,Mod,Mod:init()) end)).
+
+swap_code(Name, Mod) -&gt; rpc(Name, {swap_code, Mod}).
+
+rpc(Name, Request) -&gt;
+    Name ! {self(), Request},
+    receive
+        {Name, Response} -&gt; Response
+    end.
+
+loop(Name, Mod, OldState) -&gt;
+    receive
+        {From, {swap_code, NewCallBackMod}} -&gt;
+            From ! {Name, ack},
+            loop(Name, NewCallBackMod, OldState);
+        {From, Request} -&gt;
+            {Response, NewState} = Mod:handle(Request, OldState),
+            From ! {Name, Response},
+            loop(Name, Mod, NewState)
+    end.
+</code></pre><p>Как же это работает?</p>
+<p>Если мы отправляем серверу сообщение о замене кода (swap code), значит мы хотим заменить работающий модуль обратных вызовов на новый модуль, имя которого передается в сообщении. Продемонстрировать это можно запустив <code>server3</code> с модулем обратных вызовов и динамический подменить модуль на новый. Мы не сможем использовать <code>name_server</code> в качестве модуля обратных вызовов, поскольку это имя сервера и оно жестко задано, так как компилируется внутрь модуля сервера. В итоге нам необходимо сделать копию старого модуля и назвать его <code>name_server1</code>, где мы изменим имя сервера:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/name_server1.erl">name_server1.erl</a></p>
+<pre><code>-module(name_server1).
+-export([init/0, add/2, whereis/1, handle/2]).
+-import(server3, [rpc/2]).
+
+%% client routines
+add(Name, Place) -&gt; rpc(name_server, {add, Name, Place}).
+whereis(Name)    -&gt; rpc(name_server, {whereis, Name}).
+
+%% callback routines
+init() -&gt; dict:new().
+
+handle({add, Name, Place}, Dict) -&gt; {ok, dict:store(Name, Place, Dict)};
+handle({whereis, Name}, Dict)    -&gt; {dict:find(Name, Dict), Dict}.
+</code></pre><p>Сначала мы запустим <code>server3</code> с модулем обратных вызовов <code>name_server1</code>:</p>
+<pre><code>1&gt; server3:start(name_server, name_server1).
+true
+2&gt; name_server:add(joe, &quot;at home&quot;).
+ok
+3&gt; name_server:add(helen, &quot;at work&quot;).
+ok
+</code></pre><p>Теперь, я полагаю, мы захотим найти все имена которые обслуживает наш сервер имен. Но в нашем API нет функции для выполнения такой задачи – модуль name_server имеет лишь функции для добавления и поиска имен. </p>
+<p>Быстро запускаем наш текстовый редактор и пишем наш новый модуль обратных вызовов:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/new_name_server.erl">new_name_server.erl</a></p>
+<pre><code>-module(new_name_server).
+-export([init/0, add/2, all_names/0, delete/1, whereis/1, handle/2]).
+-import(server3, [rpc/2]).
+
+%% interface
+all_names()      -&gt; rpc(name_server, allNames).
+add(Name, Place) -&gt; rpc(name_server, {add, Name, Place}).
+delete(Name)     -&gt; rpc(name_server, {delete, Name}).
+whereis(Name)    -&gt; rpc(name_server, {whereis, Name}).
+
+%% callback routines
+init() -&gt; dict:new().
+
+handle({add, Name, Place}, Dict) -&gt; {ok, dict:store(Name, Place, Dict)};
+handle(allNames, Dict)           -&gt; {dict:fetch_keys(Dict), Dict};
+handle({delete, Name}, Dict)     -&gt; {ok, dict:erase(Name, Dict)};
+handle({whereis, Name}, Dict)    -&gt; {dict:find(Name, Dict), Dict}.
+</code></pre><p>Сейчас мы скомпилируем этот код и скажем серверу заменить работающий модуль обратных вызовов новым:</p>
+<pre><code>4&gt; c(new_name_server).
+{ok,new_name_server}
+5&gt; server3:swap_code(name_server, new_name_server).
+Ack
+</code></pre><p>И можем запустить новые функции это сервера:</p>
+<pre><code>6&gt; new_name_server:all_names().
+[joe,helen]
+</code></pre><p>Здесь мы <em>заменили модуль обратных вызовов «на лету»</em> - это и есть динамическая замена кода в действии, вы все видели сами и никакой черной магии.</p>
+<p>Сейчас прервемся и снова подумаем. Последние две задачи, которые мы с вами решили, в целом, считаются сложными, но на самом деле это очень сложные задачи. Серверы с механизмом транзакций сложны в написании; серверы с динамической заменой кода еще более сложны в написании.</p>
+<p>Эта технология чрезвычайно мощна. Обычно мы думаем о серверах как о программах, чье состояние меняется при отправке им сообщений. Код в серверах фиксированный при первом их запуске, и если мы хотим изменить поведение сервера, то нам необходимо остановить сервер, изменить его код и снова его запустить. В этом примере, код сервера может быть изменен также легко, как можно изменить состояние у сервера[^2].</p>
+<h3 id="-4-">Сервер №4: Транзакции и горячая замена кода</h3>
+<p>В предыдущих двух серверах семантика горячей замены и семантика транзакций были разделены. Давайте объединим обе возможности в одном сервере. Итак, держите ваши шляпы...</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/server4.erl">server4.erl</a></p>
+<pre><code>-module(server4).
+-export([start/2, rpc/2, swap_code/2]).
+
+start(Name, Mod) -&gt;
+    register(Name, spawn(fun() -&gt; loop(Name,Mod,Mod:init()) end)).
+
+swap_code(Name, Mod) -&gt; rpc(Name, {swap_code, Mod}).
+
+rpc(Name, Request) -&gt;
+    Name ! {self(), Request},
+    receive
+        {Name, crash} -&gt; exit(rpc);
+        {Name, ok, Response} -&gt; Response
+    end.
+
+loop(Name, Mod, OldState) -&gt;
+    receive
+        {From, {swap_code, NewCallbackMod}} -&gt;
+              From ! {Name, ok, ack},
+              loop(Name, NewCallbackMod, OldState);
+          {From, Request} -&gt;
+              try Mod:handle(Request, OldState) of
+                    {Response, NewState} -&gt;
+                        From ! {Name, ok, Response},
+                        loop(Name, Mod, NewState)
+               catch
+                    _: Why -&gt;
+                        log_the_error(Name, Request, Why),
+                        From ! {Name, crash},
+                        loop(Name, Mod, OldState)
+               end
+    end.
+
+log_the_error(Name, Request, Why) -&gt;
+    io:format(&quot;Server ~p request ~p ~n&quot;
+          &quot;caused exception ~p~n&quot;, 
+          [Name, Request, Why]).
+</code></pre><p>Этот сервер предоставляет обе возможности, и горячую замену кода и транзакции. Замечательно.</p>
+<h3 id="-5-">Сервер №5: Еще больше кайфа</h3>
+<p>Теперь, получив знания о динамической замене кода, мы можем кайфануть по полной программе. Сейчас мы рассмотрим сервер, который ничего не делает, пока мы ему не <em>скажем</em>, изменить поведение:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/server5.erl">server5.erl</a></p>
+<pre><code>-module(server5).
+-export([start/0, rpc/2]).
+
+start() -&gt; spawn(fun() -&gt; wait() end).
+
+wait() -&gt;
+    receive
+        {become, F} -&gt; F()
+    end.
+
+rpc(Pid, Q) -&gt;
+    Pid ! {self(), Q},
+    receive
+        {Pid, Reply} -&gt; Reply
+    end.
+</code></pre><p>Если мы запустим это сервер и отправим ему сообщение <code>{become, F}</code>, то он превратится в F сервер, исполнив <code>F()</code>. Запустим сервер:</p>
+<pre><code>1&gt; Pid = server5:start().
+&lt;0.57.0&gt;
+</code></pre><p>Наш сервер ничего не делает, он просто ждет сообщение <code>become</code>.</p>
+<p>Теперь давайте создадим функциональность сервера. Ничего сложного придумывать не будем, просто посчитаем факториал:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/my_fac_server.erl">my_fac_server.erl</a></p>
+<pre><code>-module(my_fac_server).
+-export([loop/0]).
+
+loop() -&gt;
+    receive
+        {From, {fac, N}} -&gt;
+              From ! {self(), fac(N)},
+              loop();
+          {become, Something} -&gt;
+              Something()
+    end.
+
+fac(0) -&gt; 1;
+fac(N) -&gt; N * fac(N-1).
+</code></pre><blockquote>
+<h4 id="-planetlab">Эрланг в PlanetLab</h4>
+<hr>
+<p>Несколько лет назад, когда мои исследования только начинались, я работал в PlanetLab. Я имел доступ к сети PlanetLab(*) и установил «пустые» Эрланг серверы на все компьютеры (около 450-ти машин). Я не знал что я буду делать с этими машинами, просто установил серверную инфраструктуру для использования в каких-нибудь целях в будущем.</p>
+<p>Так как я запустил серверы, я мог легко сказать, пустым серверам превратиться в серверы, выполняющие реальную работу.</p>
+<p>Обычная практика (для начала) – это запустить web-серверы, и установить плагины на web-серверы. Мой подход – отступить на один шаг назад и установить пустые серверы. Потом уже устанавливать плагины web-серверов для превращения пустых серверов в web-серверы. Ведь когда web-сервер станет не нужен, мы можем заставить серверы выполнять что-нибудь еще.</p>
+<p>(*) Сеть, широко используемая учеными для тестирования новых сетевых сервисов или модификации уже существующих <a href="http://www.planet-lab.org/">http://www.planet-lab.org/</a>.</p>
+</blockquote>
+<p>Скомпилируйте этот код, теперь вы сможете сказать процессу <code>&lt;0.57.0&gt;</code>, превратиться в факториал-сервер:</p>
+<pre><code>2&gt; c(my_fac_server).
+{ok,my_fac_server}
+3&gt; Pid ! {become, fun my_fac_server:loop/0}.
+{become,\#Fun&lt;my_fac_server.loop.0&gt;}
+</code></pre><p>Теперь, когда наш сервер стал факториал-сервером, мы сделаем вызов:</p>
+<pre><code>4&gt; server5:rpc(Pid, {fac,30}).
+265252859812191058636308480000000
+</code></pre><p>Наш процесс будет факториал-сервером до тех пор, пока мы не скажем ему стать кем-нибудь другим, отправив ему сообщение <code>{become, Something}</code>.</p>
+<p>Как вы увидели в предыдущем примере, мы может иметь широкий диапазон различных типов серверов, с различной семантикой и совершенно удивительными свойствами. Эта технология почти такая же мощная. Используя весь ее потенциал, можно создавать очень маленькие программы удивительной мощности и красоте. Когда мы делали проекты промышленных масштабов с десятками и сотнями программистов, мы не хотели делать некоторые вещи слишком динамичными. Мы хотели добиться баланса между обобщенностью и мощностью и получали нечто подходящее для коммерческих
+продуктов. Получали код, который меняется от версии к версии, и который превосходно работает, но очень сложен в отладке, если вдруг что-то пойдет не так. Если мы делали много динамических изменений в нашем коде, и это переставало работать, найти причину было очень нелегко.</p>
+<p>Примеры серверов в этом разделе не совсем корректны. Они писались, чтобы показать идеи, но они содержат одну или две чрезвычайно маленьких и тонких ошибки. Я не буде прямо сейчас рассказывать о них, я дам некоторые комментарии по этому поводу в конце главы.</p>
+<p>Эрланговый модуль <code>gen_server</code> – это что-то вроде логического завершения последовательности достаточно простых серверов (точно таких же которые мы писали на протяжении всей главы).</p>
+<p>Он используется в промышленных продуктах, начиная с 1998 года. Сотни серверов могут быть частью одного продукта. Эти серверы будут написаны программистами с использованием обычного последовательного кода. Все ошибки обрабатываются, и все нефункциональное поведение учтено в типовой части сервера.</p>
+<p>Итак, сейчас мы совершим огромный прыжок и рассмотрим <code>gen_server</code>.</p>
+<h2 id="16-2-gen_server">16.2 Начнем с gen_server</h2>
+<p>Я собираюсь окунуть вас в самую глубь проблемы. Вот простой план написания модуля обратных вызовов для <code>gen_server</code>, состоящий из трех пунктов:</p>
+<ol>
+<li>Выбрать имя для модуля обратных вызовов.</li>
+<li>Написать интерфейсные функции.</li>
+<li>Написать шесть обязательных функций для модуля обратных вызовов.</li>
+</ol>
+<p>На самом деле это очень просто. Не думайте – просто следуйте плану!</p>
+<h3 id="-1-">Шаг 1: Выбрать имя для модуля обратных вызовов</h3>
+<p>Мы будем делать очень простую платежную систему. Поэтому назовем модуль <code>my_bank</code>[^3].</p>
+<h3 id="-2-">Шаг 2: Написать интерфейсные конструкции</h3>
+<p>Мы определим пять интерфейсных конструкций, все они будут в модуле <code>my_bank</code>:</p>
+<p><code>start()</code> — Открыть банк.</p>
+<p><code>stop()</code> — Закрыть банк.</p>
+<p><code>new_account(Who)</code> — Создать новый аккаунт.</p>
+<p><code>deposit(Who, Amount)</code> — Положить деньги в банк.</p>
+<p><code>withdraw(Who, Amount)</code> — Взять деньги, если есть на счету.</p>
+<p>Каждая конструкция это ровно одна конструкция для вызова <code>gen_server</code>, как показано ниже:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/my_bank.erl">my_bank.erl</a></p>
+<pre><code>start() -&gt; gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+stop()  -&gt; gen_server:call(?MODULE, stop).
+
+new_account(Who)      -&gt; gen_server:call(?MODULE, {new, Who}).
+deposit(Who, Amount)  -&gt; gen_server:call(?MODULE, {add, Who, Amount}).
+withdraw(Who, Amount) -&gt; gen_server:call(?MODULE, {remove, Who, Amount}).
+</code></pre><p><code>gen_server:start_link({local, Name}, Mod, ...)</code> запускает <em>локальный</em> сервер[^4]. Макрос <code>?MODULE</code> содержит имя модуля <code>my_bank</code>. <code>Mod</code> – это имя модуля обратных вызовов. Остальные аргументы <code>gen_server:start</code> мы пока не будем рассматривать.</p>
+<p><code>gen_server:call(?MODULE, Term)</code> используется для вызова удаленных процедур сервера.</p>
+<h3 id="-3-">Шаг 3: Написать конструкции модуля обратных вызовов</h3>
+<p>Наш модуль обратных вызовов должен экспортировать шесть функций: <code>init/1</code>, <code>handle_call/3</code>, <code>handle_cast/2</code>, <code>handle_info/2</code>, <code>terminate/2</code>, и <code>code_change/3</code>.</p>
+<p>Чтобы облегчить жизнь, мы можем использовать один из шаблонов для создания <code>gen_server</code>. Вот пример:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/gen_server_template.mini">gen_server_template.mini</a></p>
+<pre><code>-module().
+%% gen_server_mini_template
+
+-behaviour(gen_server).
+-export([start_link/0]).
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+start_link() -&gt; gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+init([]) -&gt; {ok, State}.
+
+handle_call(_Request, _From, State) -&gt; {reply, Reply, State}.
+handle_cast(_Msg, State) -&gt; {noreply, State}.
+handle_info(_Info, State) -&gt; {noreply, State}.
+terminate(_Reason, _State) -&gt; ok.
+code_change(_OldVsn, State, Extra) -&gt; {ok, State}.
+</code></pre><p>Этот пример содержит простой скелет, который нужно заполнить, чтобы получить сервер. Ключевое слово <code>–behaviour</code> используется компилятором, чтобы знать какие предупреждения и сообщения об ошибках генерировать.</p>
+<p><em>Примечание</em>: Если вы используете emacs, то вы сможете вставить шаблон несколькими командами. Если ваш редактор переключен в режим эрланга, то выберите в меню Erlang -&gt; Skeletons для создания шаблона <code>gen_server</code>. Если у вас нет emacs, то не паникуйте. Я включил текст шаблона в конец главы.</p>
+<p>Итак, шаблон вставлен, и мы просто отредактируем его куски. Мы имеем все аргументы в интерфейсных конструкциях, согласно аргументам шаблона.</p>
+<p>Наиболее важная часть для нас это функция <code>handle_call/3</code>. Мы реализуем код трех запросов в нашем интерфейсе. Пока заполним многоточиями некоторые места, как показано ниже:</p>
+<pre><code>handle_call({new, Who}, From, State} -&gt;
+    Reply = ...
+    State1 = ...
+    {reply, Reply, State1};
+
+handle_call({add, Who, Amount}, From, State} -&gt;
+    Reply = ...
+    State1 = ...
+    {reply, Reply, State1};
+
+handle_call({remove, Who, Amount}, From, State} -&gt;
+    Reply = ...
+    State1 = ...
+    {reply, Reply, State1};
+</code></pre><p>Значение <code>Reply</code> отправляется обратно клиенту, как результат вызова удаленной процедуры.</p>
+<p><code>State</code> это просто переменная, представляющая глобальное состояние сервера, оно было передано серверу. В нашем банковском сервере состояние не меняется; это просто индекс ETS таблицы и он постоянный (хотя содержимое таблицы меняется).</p>
+<p>После редактирования кусков кода в шаблоне, мы получили следующий код:</p>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/my_bank.erl">my_bank.erl</a></p>
+<pre><code>init([]) -&gt; {ok, ets:new(?MODULE,[])}.
+
+handle_call({new,Who}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                []  -&gt; ets:insert(Tab, {Who,0}), 
+                             {welcome, Who};
+                  [_] -&gt; {Who, you_already_are_a_customer}
+              end,
+    {reply, Reply, Tab};
+handle_call({add,Who,X}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                    []  -&gt; not_a_customer;
+                    [{Who,Balance}] -&gt;
+                        NewBalance = Balance + X,
+                        ets:insert(Tab, {Who, NewBalance}),
+                        {thanks, Who, your_balance_is,  NewBalance}    
+              end,
+    {reply, Reply, Tab};
+handle_call({remove,Who, X}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                    []  -&gt; not_a_customer;
+                    [{Who,Balance}] when X =&lt; Balance -&gt;
+                        NewBalance = Balance - X,
+                        ets:insert(Tab, {Who, NewBalance}),
+                        {thanks, Who, your_balance_is,  NewBalance};    
+                    [{Who,Balance}] -&gt;
+                        {sorry,Who,you_only_have,Balance,in_the_bank}
+              end,
+    {reply, Reply, Tab};
+handle_call(stop, _From, Tab) -&gt;
+    {stop, normal, stopped, Tab}.
+
+handle_cast(_Msg, State) -&gt; {noreply, State}.
+handle_info(_Info, State) -&gt; {noreply, State}.
+terminate(_Reason, _State) -&gt; ok.
+code_change(_OldVsn, State, Extra) -&gt; {ok, State}.
+</code></pre><p>Запускаем наш сервер, вызвав  <code>gen_server:start_link(Name, CallBackMod,StartArgs, Opts)</code>;
+эта конструкция вызовет в модуле обратных вызовов <code>Mod:init(StartArgs)</code>, и должны нам вернуть <code>{ok, State}</code>. Значение <code>State</code> передается как третий аргумент в <code>handle_call</code>.</p>
+<p>Отмечу как мы остановим сервер. <code>handle_call(Stop, From, Tab)</code> вернет <code>{stop, normal, stopped, Tab}</code> при остановке сервера. Второй аргумент ( <code>normal</code> ) используется как первый аргумент в конструкции <code>my_bank:terminate/2</code>. Третий аргумент ( <code>stopped</code> ) становится возвращаемым значением <code>my_bank:stop()</code>.</p>
+<p>Теперь все готово. Давайте посетим наш банк:</p>
+<pre><code>1&gt; my_bank:start().
+{ok,&lt;0.33.0&gt;}
+2&gt; my_bank:deposit(&quot;joe&quot;, 10).
+not_a_customer
+3&gt; my_bank:new_account(&quot;joe&quot;).
+{welcome,&quot;joe&quot;}
+4&gt; my_bank:deposit(&quot;joe&quot;, 10).
+{thanks,&quot;joe&quot;,your_balance_is,10}
+5&gt; my_bank:deposit(&quot;joe&quot;, 30).
+{thanks,&quot;joe&quot;,your_balance_is,40}
+6&gt; my_bank:withdraw(&quot;joe&quot;, 15).
+{thanks,&quot;joe&quot;,your_balance_is,25}
+7&gt; my_bank:withdraw(&quot;joe&quot;, 45).
+{sorry,&quot;joe&quot;,you_only_have,25,in_the_bank}
+</code></pre><h3 id="16-3-gen_server">16.3 Структура обратных вызовов gen_server</h3>
+<p>Теперь вооружившись идеями, можем приступить к более детальному рассмотрению структуры обратных вызовов <code>gen_server</code>.</p>
+<h4 id="-">Что же происходит, когда мы запускаем сервер?</h4>
+<p>Вызов <code>gen_server:start_link(Name, Mod, InitArgs, Opts)</code> запускает все. Создается сервер <code>Name</code>. Запускается модуль обратных вызовов <code>Mod</code>. <code>Opts</code> управляют поведением типичного сервера. Здесь может быть протоколирование сообщений, функции отладки, и много чего еще. Типичный сервер запускается вызовом <code>Mod:init(InitArgs)</code>.</p>
+<p>Ниже приведен шаблон для <code>init</code>:</p>
+<pre><code>%%--------------------------------------------------------------------
+%% Function: init(Args) -&gt; {ok, State} |
+%% {ok, State, Timeout} |
+%% ignore |
+%% {stop, Reason}
+%% Description: Initiates the server
+%%--------------------------------------------------------------------
+init([]) -&gt;
+  {ok, #state{}}.
+</code></pre><p>При нормальном положении дел, мы просто вернем <code>{ok, State}</code>. Значение других аргументов вы можете найти в руководстве по <code>gen_server</code>.</p>
+<p>Если возвращается значение <code>{ok, State}</code>, значит, сервер успешно запущен и его начальное состояние <code>State</code>.</p>
+<h4 id="-">Что же происходит, когда мы обращаемся к серверу?</h4>
+<p>Для обращения к серверу клиентская программа вызывает <code>gen_server:call(Name, Request)</code>. В результате будет вызвана функция <code>handle_call/3</code> из модуля обратных вызовов.</p>
+<p><code>handle_call/3</code> имеет следующий шаблон:</p>
+<pre><code>%%----------------------------------------------------------------------
+%% Function:
+%% handle_call(Request, From, State) -&gt; {reply, Reply, State} |
+%% {reply, Reply, State, Timeout} |
+%% {noreply, State} |
+%% {noreply, State, Timeout} |
+%% {stop, Reason, Reply, State} |
+%% {stop, Reason, State}
+%% Description: Handling call messages
+%%----------------------------------------------------------------------
+handle_call(_Request, _From, State) -&gt;
+  Reply = ok,
+  {reply, Reply, State}.
+</code></pre><p><code>Request</code> (второй аргумент <code>gen_server:call/2</code>) станет первым аргумент <code>handle_call/3</code>. <code>From</code> – это PID, запрашивающего клиентского процесса, а <code>State</code> – это текущее состояние клиента.</p>
+<p>Если все хорошо, мы возвращаем <code>{reply, Reply, NewState}</code>. Когда это происходит <code>Reply</code> уходит обратно к клиенту, где превращается в возвращаемое значение <code>gen_server:call</code>. <code>NewState</code> – это следующее состояние сервера.</p>
+<p>Другие возвращаемые значения <code>{noreply, ...}</code> и <code>{stop, ...}</code> используются достаточно редко, noreply заставляет сервер продолжить работу, но клиент будет ожидать ответа, так как сервер озадачен отвечать всем клиентам. Вызов <code>stop</code> с соответствующими аргументами остановит сервер.</p>
+<h4 id="-">Вызовы и Образы</h4>
+<p>Мы увидели взаимодействие между <code>gen_server:call</code> и <code>handle_call</code>. Это то, что используется для реализации <em>вызова удаленных процедур (remote procedure call)</em>. <code>gen_server:cast(Name, Name)</code> реализация <em>образа</em>, который просто вызывается, не возвращая значений (на самом деле просто сообщение, но обычно это вызов образа из удаленной процедуры).</p>
+<p>Соответствующий обратный вызов <code>handle_cast</code> показан в шаблоне ниже:</p>
+<pre><code>%%--------------------------------------------------------------------
+%% Function: handle_cast(Msg, State) -&gt; {noreply, NewState} |
+%% {noreply, NewState, Timeout} |
+%% {stop, Reason, NewState}
+%% Description: Handling cast messages
+%%--------------------------------------------------------------------
+handle_cast(_Msg, State) -&gt;
+  {noreply, NewState}.
+</code></pre><p>Обработчик обычно возвращает <code>{noreply, NewState}</code>, который меняет состояние сервера или <code>{stop, ...}</code>, который останавливает сервер.</p>
+<h4 id="-">Спонтанные сообщения</h4>
+<p>Функция обратного вызова <code>handle_info(info, State)</code> используется для обработки спонтанных сообщений получаемых сервером. Так что же такое спонтанные сообщения? Если сервер связан с другими процессами и перехватывает их, он может внезапно принять неожиданное сообщение
+<code>{‘EXIT’, Pid, What}</code>. Либо, любой процесс в системе, который знает PID сервера, может просто отправить ему сообщение. Любые такие сообщения будут приняты сервером как значение переменной <code>Info</code>.</p>
+<p>Шаблон для <code>handle_info</code> выглядит так:</p>
+<pre><code>%%--------------------------------------------------------------------
+%% Function: handle_info(Info, State) -&gt; {noreply, State} |
+%% {noreply, State, Timeout} |
+%% {stop, Reason, State}
+%% Description: Handling all non-call/cast messages
+%%--------------------------------------------------------------------
+handle_info(_Info, State) -&gt;
+  {noreply, State}.
+</code></pre><p>Возвращаемое значение такое же как у <code>handle_cast</code>.</p>
+<h4 id="-">Прощай, малышка</h4>
+<p>Сервер может прервать свою работу по многим причинам. Один из <code>handle_Something</code> вызовов может вернуть <code>{stop, Reason, NewState}</code>, либо сервер может рухнуть при сообщении <code>{‘Exit’, reason}</code>. При любом раскладе будет вызвана функция <code>terminate(Reason, NewState)</code>.</p>
+<p>Вот ее шаблон:</p>
+<pre><code>%%--------------------------------------------------------------------
+%% Function: terminate(Reason, State) -&gt; void()
+%% Description: This function is called by a gen_server when it is
+%% about to terminate. It should be the opposite of Module:init/1 and
+%% do any necessary
+%% cleaning up. When it returns, the gen_server terminates with Reason.
+%% The return value is ignored.
+%%--------------------------------------------------------------------
+terminate(_Reason, State) -&gt;
+ok.
+</code></pre><p>Эта функция не возвращает новое состояние, потому что вся работа уже прервана. И что же можно сделать в этим состоянием ( <code>State</code> )? Оказывается многое. Мы можем сохранять его на диск, Отправить в сообщении другим процессам или отказаться от него, если это необходимо приложению. Если вы хотите чтобы ваш сервер был когда-нибудь перезапущен, вам необходимо написать функцию «Я еще вернусь», которую вызовет <code>terminate/2</code>.</p>
+<h4 id="-">Замена кода</h4>
+<p>Вы можете динамически изменять состояние своего сервера, пока он запущен. Вызов этой функции обратного вызова производит подсистема &quot;управления релизами&quot; когда система выполняет обновление программного кода.</p>
+<p>Эта часть детально описана в разделе &quot;Управление релизами&quot; в документации о принципах дизайна OTP[^5].</p>
+<pre><code>%%--------------------------------------------------------------------
+%% Func: code_change(OldVsn, State, Extra) -&gt; {ok, NewState} %%
+%% Description: Convert process state when code is changed
+%%--------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) -&gt; {ok, State}.
+</code></pre><h2 id="16-4-">16.4 Код и Шаблоны</h2>
+<p>Этот код сделан в emacs:</p>
+<h4 id="gen_server-template">gen_server template</h4>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/gen_server_template.full">gen_server_template.full</a></p>
+<pre><code>%%%-------------------------------------------------------------------
+%%% File    : gen_server_template.full
+%%% Author  : my name &lt;yourname@localhost.localdomain&gt;
+%%% Description : 
+%%%
+%%% Created :  2 Mar 2007 by my name &lt;yourname@localhost.localdomain&gt;
+%%%-------------------------------------------------------------------
+-module().
+
+-behaviour(gen_server).
+
+%% API
+-export([start_link/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+   terminate/2, code_change/3]).
+
+-record(state, {}).
+
+%%====================================================================
+%% API
+%%====================================================================
+%%--------------------------------------------------------------------
+%% Function: start_link() -&gt; {ok,Pid} | ignore | {error,Error}
+%% Description: Starts the server
+%%--------------------------------------------------------------------
+start_link() -&gt;
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%====================================================================
+%% gen_server callbacks
+%%====================================================================
+
+%%--------------------------------------------------------------------
+%% Function: init(Args) -&gt; {ok, State} |
+%%                         {ok, State, Timeout} |
+%%                         ignore               |
+%%                         {stop, Reason}
+%% Description: Initiates the server
+%%--------------------------------------------------------------------
+init([]) -&gt;
+    {ok, #state{}}.
+
+%%--------------------------------------------------------------------
+%% Function: %% handle_call(Request, From, State) -&gt; {reply, Reply, State} |
+%%                                      {reply, Reply, State, Timeout} |
+%%                                      {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, Reply, State} |
+%%                                      {stop, Reason, State}
+%% Description: Handling call messages
+%%--------------------------------------------------------------------
+handle_call(_Request, _From, State) -&gt;
+    Reply = ok,
+    {reply, Reply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_cast(Msg, State) -&gt; {noreply, State} |
+%%                                      {noreply, State, Timeout} |
+%%                                      {stop, Reason, State}
+%% Description: Handling cast messages
+%%--------------------------------------------------------------------
+handle_cast(_Msg, State) -&gt;
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_info(Info, State) -&gt; {noreply, State} |
+%%                                       {noreply, State, Timeout} |
+%%                                       {stop, Reason, State}
+%% Description: Handling all non call/cast messages
+%%--------------------------------------------------------------------
+handle_info(_Info, State) -&gt;
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% Function: terminate(Reason, State) -&gt; void()
+%% Description: This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any necessary
+%% cleaning up. When it returns, the gen_server terminates with Reason.
+%% The return value is ignored.
+%%--------------------------------------------------------------------
+terminate(_Reason, _State) -&gt;
+    ok.
+
+%%--------------------------------------------------------------------
+%% Func: code_change(OldVsn, State, Extra) -&gt; {ok, NewState}
+%% Description: Convert process state when code is changed
+%%--------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) -&gt;
+    {ok, State}.
+
+%%--------------------------------------------------------------------
+%%% Internal functions
+%%--------------------------------------------------------------------
+</code></pre><h4 id="my_bank">my_bank</h4>
+<p>Скачать <a href="http://media.pragprog.com/titles/jaerlang/code/my_bank.erl">my_bank.erl</a></p>
+<pre><code>-module(my_bank).
+
+-behaviour(gen_server).
+-export([start/0]).
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+   terminate/2, code_change/3]).
+-compile(export_all).
+
+
+start() -&gt; gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+stop()  -&gt; gen_server:call(?MODULE, stop).
+
+new_account(Who)      -&gt; gen_server:call(?MODULE, {new, Who}).
+deposit(Who, Amount)  -&gt; gen_server:call(?MODULE, {add, Who, Amount}).
+withdraw(Who, Amount) -&gt; gen_server:call(?MODULE, {remove, Who, Amount}).
+
+
+init([]) -&gt; {ok, ets:new(?MODULE,[])}.
+
+handle_call({new,Who}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                []  -&gt; ets:insert(Tab, {Who,0}), 
+                           {welcome, Who};
+                  [_] -&gt; {Who, you_already_are_a_customer}
+              end,
+    {reply, Reply, Tab};
+handle_call({add,Who,X}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                    []  -&gt; not_a_customer;
+                    [{Who,Balance}] -&gt;
+                        NewBalance = Balance + X,
+                        ets:insert(Tab, {Who, NewBalance}),
+                        {thanks, Who, your_balance_is,  NewBalance}    
+              end,
+    {reply, Reply, Tab};
+handle_call({remove,Who, X}, _From, Tab) -&gt;
+    Reply = case ets:lookup(Tab, Who) of
+                    []  -&gt; not_a_customer;
+                    [{Who,Balance}] when X =&lt; Balance -&gt;
+                        NewBalance = Balance - X,
+                        ets:insert(Tab, {Who, NewBalance}),
+                        {thanks, Who, your_balance_is,  NewBalance};    
+                    [{Who,Balance}] -&gt;
+                        {sorry,Who,you_only_have,Balance,in_the_bank}
+              end,
+    {reply, Reply, Tab};
+handle_call(stop, _From, Tab) -&gt;
+    {stop, normal, stopped, Tab}.
+
+handle_cast(_Msg, State) -&gt; {noreply, State}.
+handle_info(_Info, State) -&gt; {noreply, State}.
+terminate(_Reason, _State) -&gt; ok.
+code_change(_OldVsn, State, Extra) -&gt; {ok, State}.
+</code></pre><h2 id="16-5-">16.5 Копаем глубже</h2>
+<p>Мы увидели, что <code>gen_server</code> достаточно прост. Мы не рассмотрели <em>некоторые</em> интерфейсные функции <code>gen_server</code>-а, и не поговорили обо всех аргументах интерфейсных функций. Если вы поняли основные идеи, то с деталями разберетесь, обратившись к документации по <code>gen_server</code>.</p>
+<p>В этой главе мы увидели только простейшие возможные пути использования <code>gen_server</code>, но этого должно быть достаточно для решения большинства задач. Более сложные приложения позволяют <code>gen_server</code>-у отвечать со значением <code>noreply</code> и и делегировать ответ другому процессу. Информацию об этом вы можете прочитать в главе <em>&quot;Принципы дизайна&quot;</em><a href="http://www.erlang.org/doc/design_principles/users_guide.html">^6</a> и в руководстве по модулям <code>sys</code> и <code>proc_lib</code>.</p>
+<hr>
+<p>[^1]: Ericsson выпустила OTP на условии  Erlang Public License (EPL). EPL является производной лицензии Mozilla Public (MPL).</p>
+<p>[^2]: Я использовал эту технологию во многих продуктах, которые никогда не останавливались для модернизации кода.</p>
+<p>[^3]: Если вам интересно, то есть несколько онлайновых финансовых сервисов, написанных нав Erlang (например, <a href="http://kreditor.se/">http://kreditor.se/</a>). Сейчас они не публикуют свои исходные коды, но если бы они это сделали, то код мог бы выглядеть, как наш.</p>
+<p>[^4]: Можно использовать аргумент <code>global</code> для того, чтобы он был доступен кластеру Эрланг-серверов).</p>
+<p>[^5]: Доступно на <a href="http://www.erlang.org/doc/design_principles/users_guide.html">http://www.erlang.org/doc/design_principles/users_guide.html</a>.</p>
+
+		</div>
+		
+		
+		<!-- pagination -->
+		<nav>
+
+	<ul class="pager">
+  <li class="previous"><a href="http://erlangbook.tk/15" title="Previous Post: Глава 15. ETS и DETS:" class="navlinks-prev"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span> Глава 15. ETS и DETS:</a></li>
+  <li class="next"><a href="http://erlangbook.tk/17" title="Next Post: Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге)" class="navlinks-next">Глава 17. Mnesia: СУБД для Эрланга (и на Эрланге) <span class="glyphicon glyphicon-arrow-right" aria-hidden="true"></span></a></li>
+</ul>
+
+</nav>
+
+		
+		
+		<!-- footer -->
+		<footer>
+			<div class="container" >
+			<div class="row" >
+			<div class="col-sm-1">
+<!--LiveInternet logo--><a href="//www.liveinternet.ru/click"
+target="_blank"><img src="//counter.yadro.ru/logo?52.6"
+title="LiveInternet: �������� ����� ���������� � ����������� �� 24 ����"
+alt="" border="0" width="88" height="31"/></a><!--/LiveInternet-->
+</div>
+
+			<div class="col-sm-11">
+<script language="JavaScript" src="http://r1.wmlink.ru/?id=422948"></script>
+</div>
+
+			</div>
+			</div>
+			
+			<p>
+	&copy; 2015 <a href="http://erlangbook.tk">erlangbook.tk</a>
+</p>
+
+		</footer>
+	</div>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="http://erlangbook.tk/js/bootstrap.min.js"></script>
+	<script src="http://erlangbook.tk/js/docs.js"></script>
+
+<!--bootstrap material design-->
+        <script src="http://erlangbook.tk/js/ripples.min.js"></script>
+        <script src="http://erlangbook.tk/js/material.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $.material.init();
+            });
+        </script>
+
+</body>
+</html>
